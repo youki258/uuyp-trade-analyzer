@@ -69,6 +69,7 @@ export async function uploadCsvToSession(
   const res = await fetch("/api/upload-csv", {
     method: "POST",
     body: formData,
+    signal: AbortSignal.timeout(15000),
   });
   const payload = await parseJson<ApiResult & { files?: ServerFile[] }>(res);
   if (!res.ok) {
@@ -97,6 +98,7 @@ export async function authByToken(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token, appType }),
+    signal: AbortSignal.timeout(15000),
   });
   const payload = await parseJson<ApiResult>(res);
   if (!res.ok) {
@@ -116,6 +118,7 @@ export async function sendSmsCode(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone }),
+    signal: AbortSignal.timeout(15000),
   });
   const payload = await parseJson<ApiResult & { requiresManualSms?: boolean }>(
     res,
@@ -142,6 +145,7 @@ export async function verifySmsCode(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, code }),
+    signal: AbortSignal.timeout(15000),
   });
   const payload = await parseJson<ApiResult>(res);
   if (!res.ok) {
@@ -162,6 +166,7 @@ export async function authByPassword(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
+    signal: AbortSignal.timeout(15000),
   });
   const payload = await parseJson<ApiResult>(res);
   if (!res.ok) {
@@ -184,6 +189,7 @@ export async function startFetch(options: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(options),
+    signal: AbortSignal.timeout(300000),
   });
   const payload = await parseJson<FetchStartResult>(res);
   if (!res.ok) {
@@ -209,6 +215,7 @@ export async function createDownloadTicket(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filename }),
+    signal: AbortSignal.timeout(10000),
   });
   const payload = await parseJson<DownloadTicketResult>(res);
   if (!res.ok) {
@@ -228,6 +235,7 @@ export async function createDownloadTicket(
 export async function destroySession(): Promise<ApiResult> {
   const res = await fetch("/api/session/destroy", {
     method: "POST",
+    signal: AbortSignal.timeout(10000),
   });
   const payload = await parseJson<ApiResult>(res);
   if (!res.ok) {

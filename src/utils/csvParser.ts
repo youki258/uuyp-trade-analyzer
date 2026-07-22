@@ -128,9 +128,6 @@ export function parseCsvFile(
           const records: TradeRecord[] = [];
           const headers = Object.keys(rows[0]).map(stripBom);
 
-          console.log("[UUYP] CSV headers:", headers);
-          console.log("[UUYP] First row sample:", rows[0]);
-
           // 检测方向字段：优先"订单类型"，其次"交易方向"
           const hasOrderType = headers.some((h) => h.includes("订单类型"));
           const hasDirection = headers.some((h) => h.includes("交易方向"));

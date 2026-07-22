@@ -153,10 +153,6 @@ export function useTradeDataCore() {
         .map((r) => r.tradeTime)
         .sort((a, b) => a.getTime() - b.getTime());
 
-      console.log(
-        `[UUYP] Total: ${normalizedRecords.length} records, ${buyCount} buys, ${sellCount} sells, P/L: ${stats.netProfitLoss}`,
-      );
-
       setState({
         records: normalizedRecords,
         pairs,
@@ -170,7 +166,7 @@ export function useTradeDataCore() {
           buyCount,
           sellCount,
           dateRange: { start: dates[0], end: dates[dates.length - 1] },
-          records: normalizedRecords,
+          records: [],
         },
       });
     } catch (err) {
