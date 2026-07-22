@@ -174,9 +174,9 @@ class UUYPClient:
             uk = (result.get("data") or {}).get("uk", "")
             if uk:
                 self.session.headers["uk"] = uk
-                print(f"[OK] uk 设备校验码获取成功")
+                print("[OK] uk 设备校验码获取成功")
             else:
-                print(f"[!] uk 获取失败（不影响基本功能）: {result}")
+                print(f"[!] uk 获取失败 (code={result.get('code')}, 不影响基本功能)")
         except Exception as e:
             print(f"[!] uk 获取异常（不影响基本功能）: {e}")
 
@@ -187,7 +187,7 @@ class UUYPClient:
             if "Data" in info and info.get("Code") == 0:
                 self.nickname = info["Data"].get("NickName", "")
                 self.user_id = info["Data"].get("UserId", "")
-                print(f"[OK] Token 验证成功，用户名: {self.nickname}, UserId: {self.user_id}")
+                print("[OK] Token 验证成功")
             else:
                 raise Exception(f"Token 验证失败: {info.get('Msg', '未知错误')}")
         except Exception as e:
@@ -215,7 +215,7 @@ class UUYPClient:
             "Sessionid": device_info["deviceId"],
             "Code": "",
         }
-        response = requests.post(url, json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers, timeout=15)
         result = response.json()
 
         if result.get("Code") == 5050:
@@ -249,11 +249,11 @@ class UUYPClient:
             "Mobile": phone,
             "TenDay": 1,  # 10天免登录
         }
-        response = requests.post(url, json=data, headers=headers or {})
+        response = requests.post(url, json=data, headers=headers or {}, timeout=15)
         result = response.json()
 
         if result.get("Code") == 0 and "Data" in result and "Token" in result["Data"]:
-            print(f"[OK] 登录成功！Token: {result['Data']['Token'][:20]}...")
+            print("[OK] 登录成功")
             return result
         else:
             print(f"[FAIL] 登录失败: {result.get('Msg', '未知错误')}")
@@ -284,11 +284,11 @@ class UUYPClient:
             "UserName": username,
             "UserPwd": password,
         }
-        response = requests.post(url, json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers, timeout=15)
         result = response.json()
 
         if result.get("Code") == 0 and "Data" in result and "Token" in result["Data"]:
-            print(f"[OK] 密码登录成功！Token: {result['Data']['Token'][:20]}...")
+            print("[OK] 密码登录成功")
         else:
             print(f"[FAIL] 密码登录失败: {result.get('Msg', '未知错误')}")
 
@@ -317,15 +317,8 @@ class UUYPClient:
             else:
                 raise ValueError(f"不支持的 HTTP 方法: {method}")
 
-            # 调试日志
-            try:
-                log_output = response.content.decode()
-                if self._is_json(log_output):
-                    log_output = json.dumps(json.loads(log_output), ensure_ascii=False)[:200]
-            except Exception:
-                log_output = "[解码失败]"
-
-            print(f"[API] {method} {path} -> {response.status_code}: {log_output}")
+            # 调试日志 — 不记录响应内容，防止泄露用户数据
+            print(f"[API] {method} {path} -> {response.status_code}")
             return response
 
         except requests.exceptions.RequestException as e:
