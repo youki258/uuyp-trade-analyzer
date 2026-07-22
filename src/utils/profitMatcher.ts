@@ -59,12 +59,12 @@ export function matchProfitLoss(records: TradeRecord[]): MatchedPair[] {
         sellRecord: sell,
         costPrice: 0,
         sellPrice: sell.priceYuan,
-        profitLoss: sell.priceYuan,
-        profitLossPercent: 1,
+        profitLoss: null,
+        profitLossPercent: null,
         holdingDays: 0,
         withdrawFee: 0,
-        netProfitLoss: sell.priceYuan,
-        status: "realized",
+        netProfitLoss: null,
+        status: "unmatched",
       });
     }
   }

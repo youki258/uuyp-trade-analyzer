@@ -63,7 +63,7 @@ export interface MatchedPair {
   holdingDays: number | null;
   withdrawFee: number;
   netProfitLoss: number | null;
-  status: "realized" | "holding";
+  status: "realized" | "holding" | "unmatched";
 }
 
 export interface CategorySummary {
