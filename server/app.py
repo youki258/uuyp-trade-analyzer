@@ -571,6 +571,8 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         lease_in_path = payload.get("leaseInPath")
         if lease_in_path is not None:
             lease_in_path = str(lease_in_path).strip() or None
+            if lease_in_path and not lease_in_path.startswith("/api/"):
+                return jsonify({"status": "error", "message": "leaseInPath must start with /api/"}), 400
 
         token = str(auth.get("token", "")).strip()
         app_type = str(auth.get("appType", "app") or "app")
