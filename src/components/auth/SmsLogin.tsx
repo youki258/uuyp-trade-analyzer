@@ -57,6 +57,7 @@ export function SmsLogin({
     try {
       const result = await verifySmsCode(phone.trim(), code.trim());
       if (result.status === "ok") {
+        setPhone("");
         setCode("");
         setMessage("短信登录成功");
         await onRefreshState();
