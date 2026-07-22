@@ -1,0 +1,11 @@
+[project]
+name = "uuyp-trade-analyzer"
+version = "0.1.0"
+description = "悠悠有品(UUYP) CS2 交易账单导出与盈亏分析 Web 服务"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.28.0",
+    "flask>=3.0.0",
+]
+
+[tool.uv]
