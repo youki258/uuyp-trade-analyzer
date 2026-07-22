@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { sendSmsCode, verifySmsCode } from "@/utils/statelessApi";
 import type { AuthInfo } from "@/types/stateless";
 
+// 中国大陆手机号：1 开头、第二位 3-9、共 11 位数字
+const PHONE_REGEX = /^1[3-9]\d{9}$/;
+
 interface SmsLoginProps {
   isBusy: boolean;
   onRefreshState: () => Promise<void>;
@@ -23,14 +26,19 @@ export function SmsLogin({
   const [loading, setLoading] = useState(false);
 
   async function handleSend() {
-    if (!phone.trim()) {
+    const phoneTrim = phone.trim();
+    if (!phoneTrim) {
       setMessage("请输入手机号");
+      return;
+    }
+    if (!PHONE_REGEX.test(phoneTrim)) {
+      setMessage("请输入有效的中国大陆手机号");
       return;
     }
     setLoading(true);
     setMessage("");
     try {
-      const result = await sendSmsCode(phone.trim());
+      const result = await sendSmsCode(phoneTrim);
       if (result.status === "ok") {
         setMessage(
           result.requiresManualSms
@@ -48,14 +56,19 @@ export function SmsLogin({
   }
 
   async function handleVerify() {
-    if (!phone.trim()) {
+    const phoneTrim = phone.trim();
+    if (!phoneTrim) {
       setMessage("请输入手机号");
+      return;
+    }
+    if (!PHONE_REGEX.test(phoneTrim)) {
+      setMessage("请输入有效的中国大陆手机号");
       return;
     }
     setLoading(true);
     setMessage("");
     try {
-      const result = await verifySmsCode(phone.trim(), code.trim());
+      const result = await verifySmsCode(phoneTrim, code.trim());
       if (result.status === "ok") {
         setPhone("");
         setCode("");

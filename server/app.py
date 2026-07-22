@@ -3,8 +3,10 @@ import re
 import uuid
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import Flask, abort, g, jsonify, request, send_file, send_from_directory
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import load_config
 from .download_tickets import OneTimeDownloadTicketStore
@@ -33,8 +35,11 @@ def _normalize_msg(payload: dict) -> str:
     return "请求失败"
 
 
+_PHONE_PATTERN = re.compile(r"^1[3-9]\d{9}$")
+
+
 def _is_valid_phone(value: str) -> bool:
-    return bool(re.fullmatch(r"\d{6,20}", value))
+    return bool(_PHONE_PATTERN.fullmatch(value))
 
 
 def _is_valid_sms_code(value: str) -> bool:
@@ -78,8 +83,14 @@ def _check_same_origin() -> tuple[bool, str]:
         if request.method in ("POST", "PUT", "DELETE", "PATCH"):
             return False, "missing origin header"
         return True, ""
-    host_url = request.host_url.rstrip("/")
-    if origin.rstrip("/") != host_url:
+    try:
+        o = urlparse(origin)
+        h = urlparse(request.host_url)
+    except ValueError:
+        return False, "invalid origin"
+    # 比较 scheme / host / port，比直接字符串比对 host_url 更稳健，
+    # 也能正确处理 ProxyFix 修正后的 request.host_url（含 https + youki.me）
+    if (o.scheme, o.hostname, o.port) != (h.scheme, h.hostname, h.port):
         return False, "invalid origin"
     return True, ""
 
@@ -117,6 +128,19 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     当前阶段仅提供静态页面和状态接口，后续步骤会逐步加入会话、上传、抓取和下载链路。
     """
     app = Flask(__name__, static_folder=None)
+    # 信任 Caddy 反向代理设置的 X-Forwarded-* 头。
+    # 这会让 request.scheme 变为 https、request.host 变为 youki.me，
+    # 从而 _check_same_origin 比较时 Origin (https://youki.me) 与 host_url 一致；
+    # 否则 Caddy→Flask 是 http 直连，Flask 看到的 scheme/host 是反代后的内部值，
+    # 同源校验会 403。
+    # x_for/x_proto/x_host/x_prefix 都设为 1：只信任 1 层代理（Caddy 在公网只过一道）。
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=1,
+        x_proto=1,
+        x_host=1,
+        x_prefix=1,
+    )
     cfg = load_config()
     sessions = InMemorySessionStore(cfg.session_ttl_seconds, cfg.max_sessions)
     rate_limiter = InMemoryRateLimiter()

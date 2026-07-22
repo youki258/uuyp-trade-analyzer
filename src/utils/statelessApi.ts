@@ -90,27 +90,6 @@ export async function uploadCsvToSession(
   };
 }
 
-export async function authByToken(
-  token: string,
-  appType: "app" | "web" = "app",
-): Promise<ApiResult> {
-  const res = await fetch("/api/auth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, appType }),
-    signal: AbortSignal.timeout(15000),
-  });
-  const payload = await parseJson<ApiResult>(res);
-  if (!res.ok) {
-    return {
-      status: "error",
-      message: payload?.message || "Token 认证失败",
-      code: payload?.code,
-    };
-  }
-  return { status: "ok", message: payload?.message };
-}
-
 export async function sendSmsCode(
   phone: string,
 ): Promise<ApiResult & { requiresManualSms?: boolean }> {
@@ -152,27 +131,6 @@ export async function verifySmsCode(
     return {
       status: "error",
       message: payload?.message || "短信验证失败",
-      code: payload?.code,
-    };
-  }
-  return { status: "ok", message: payload?.message };
-}
-
-export async function authByPassword(
-  username: string,
-  password: string,
-): Promise<ApiResult> {
-  const res = await fetch("/api/auth/pwd", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-    signal: AbortSignal.timeout(15000),
-  });
-  const payload = await parseJson<ApiResult>(res);
-  if (!res.ok) {
-    return {
-      status: "error",
-      message: payload?.message || "密码登录失败",
       code: payload?.code,
     };
   }
