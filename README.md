@@ -139,6 +139,12 @@ docker pull ghcr.io/<owner>/uuyp-trade-analyzer:latest
 - **Client-side analysis** — All profit/loss computation (FIFO matching, charts) runs in the browser. Backend only fetches and serves data.
 - **uk device verification** — Client obtains a `uk` token from `/api/app` on init to reduce rate-limiting risk.
 
+## Documentation
+
+- [Development Guide](docs/development.md) — 分支策略、提交规范、测试、CI/CD、安全编码标准
+- [Deployment Guide](docs/deployment.md) — Docker 部署、VPS 配置、镜像加速、监控、回滚
+- [API Research](docs/api_research.md) — 悠悠有品 API 逆向研究报告
+
 ## Related Projects
 
 - Desktop version (PyInstaller): [cs2-youpin-trade-analyzer](https://github.com/youki258/cs2-youpin-trade-analyzer)
