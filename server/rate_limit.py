@@ -2,8 +2,10 @@ import time
 from dataclasses import dataclass
 from threading import Lock
 
-# 每隔多少次请求触发一次空键清理
+# 每隔多少次请求触发一次过期键清理
 _CLEANUP_INTERVAL = 200
+# 清理时使用的最长保留时间（秒），超过此时间无请求的键会被移除
+_DEFAULT_MAX_AGE = 3600
 
 
 @dataclass(frozen=True)
@@ -32,18 +34,26 @@ class InMemoryRateLimiter:
             entries.append(now)
             self._store[key] = entries
 
-            # 定期清理空键，防止内存泄漏
+            # 定期清理所有过期键，防止内存泄漏
             if self._request_count % _CLEANUP_INTERVAL == 0:
-                self._store = {k: v for k, v in self._store.items() if v}
+                cutoff = now - _DEFAULT_MAX_AGE
+                self._store = {
+                    k: [ts for ts in v if ts > cutoff]
+                    for k, v in self._store.items()
+                    if any(ts > cutoff for ts in v)
+                }
 
             return True
 
-    def cleanup(self) -> None:
-        """显式清理所有过期空键"""
+    def cleanup(self, max_age_seconds: float = _DEFAULT_MAX_AGE) -> None:
+        """显式清理过期键
+
+        :param max_age_seconds: 超过此时间无请求的键会被移除
+        """
         with self._lock:
-            now = time.time()
+            cutoff = time.time() - max_age_seconds
             self._store = {
-                k: [ts for ts in v if ts > now - 3600]
+                k: [ts for ts in v if ts > cutoff]
                 for k, v in self._store.items()
-                if any(ts > now - 3600 for ts in v)
+                if any(ts > cutoff for ts in v)
             }
