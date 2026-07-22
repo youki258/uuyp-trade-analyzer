@@ -8,8 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 
 export function DashboardPage() {
-  const { stats, records, hasData } = useTradeData();
+  const { stats, records, hasData, isLoading } = useTradeData();
   const navigate = useNavigate();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <p className="text-muted-foreground text-lg animate-pulse">正在加载数据...</p>
+      </div>
+    );
+  }
 
   if (!hasData || !stats) {
     return (

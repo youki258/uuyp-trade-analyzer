@@ -74,6 +74,9 @@ def _looks_like_csv(content: bytes) -> bool:
 def _check_same_origin() -> tuple[bool, str]:
     origin = request.headers.get("Origin", "")
     if not origin:
+        # POST/PUT/DELETE 必须带 Origin 头，防止 CSRF
+        if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+            return False, "missing origin header"
         return True, ""
     host_url = request.host_url.rstrip("/")
     if origin.rstrip("/") != host_url:
@@ -193,6 +196,11 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 samesite=cfg.cookie_samesite,
                 path="/",
             )
+        # 安全 HTTP 头
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Cache-Control"] = "no-store"
         return response
 
     @app.route("/")
@@ -620,6 +628,9 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
     @app.route("/api/files")
     def api_files():
+        auth_err = _require_auth()
+        if auth_err[1]:
+            return auth_err[1]
         limited = _check_rate_limit("api_files", RateLimitRule(max_requests=120, window_seconds=60))
         if limited:
             return limited
@@ -627,6 +638,9 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
     @app.route("/api/csv/<filename>")
     def api_csv(filename: str):
+        auth_err = _require_auth()
+        if auth_err[1]:
+            return auth_err[1]
         limited = _check_rate_limit("api_csv", RateLimitRule(max_requests=80, window_seconds=60))
         if limited:
             return limited
@@ -638,6 +652,9 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
     @app.route("/api/download-ticket", methods=["POST"])
     def create_download_ticket():
+        auth_err = _require_auth()
+        if auth_err[1]:
+            return auth_err[1]
         limited = _check_rate_limit_both(
             "download_ticket",
             RateLimitRule(max_requests=40, window_seconds=60),
@@ -695,6 +712,9 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
     @app.route("/api/upload-csv", methods=["POST"])
     def upload_csv():
+        auth_err = _require_auth()
+        if auth_err[1]:
+            return auth_err[1]
         limited = _check_rate_limit_both(
             "upload_csv",
             RateLimitRule(max_requests=20, window_seconds=300),

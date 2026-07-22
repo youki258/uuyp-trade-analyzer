@@ -197,9 +197,10 @@ export function LoginPage() {
       setWorkflowTone("success");
       setWorkflowMessage(`解析完成，已加载 ${primaryFiles.length} 个文件`);
     } catch (e: unknown) {
-      setServerError("从服务器加载失败");
+      const msg = e instanceof Error ? e.message : "未知错误";
+      setServerError(`从服务器加载失败: ${msg}`);
       setWorkflowTone("error");
-      setWorkflowMessage("从服务器加载失败");
+      setWorkflowMessage(`从服务器加载失败: ${msg}`);
     }
   }
 
@@ -210,9 +211,10 @@ export function LoginPage() {
       await loadFiles(files);
       setWorkflowTone("success");
       setWorkflowMessage("解析完成");
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "未知错误";
       setWorkflowTone("error");
-      setWorkflowMessage("解析失败");
+      setWorkflowMessage(`解析失败: ${msg}`);
     }
   }
 
@@ -223,15 +225,23 @@ export function LoginPage() {
       const result = await createDownloadTicket(filename);
       if (result.status !== "ok" || !result.downloadUrl) {
         setWorkflowTone("error");
-        setWorkflowMessage("生成下载链接失败");
+        setWorkflowMessage(`生成下载链接失败: ${result.message || "未知错误"}`);
         return;
       }
-      window.location.href = result.downloadUrl;
+      // 校验下载 URL 是同源相对路径，防止开放重定向
+      const url = result.downloadUrl;
+      if (!url.startsWith("/") && !url.startsWith(window.location.origin)) {
+        setWorkflowTone("error");
+        setWorkflowMessage("下载链接不合法");
+        return;
+      }
+      window.location.href = url;
       setWorkflowTone("success");
       setWorkflowMessage(`下载链接已生成`);
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "未知错误";
       setWorkflowTone("error");
-      setWorkflowMessage("下载失败");
+      setWorkflowMessage(`下载失败: ${msg}`);
     }
   }
 
