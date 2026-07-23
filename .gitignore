@@ -23,5 +23,8 @@ Thumbs.db
 .env.local
 token.txt
 
+# WorkBuddy (project memory, not for git)
+.workbuddy/
+
 # Output
 output/
