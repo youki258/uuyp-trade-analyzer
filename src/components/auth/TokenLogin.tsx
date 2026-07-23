@@ -2,20 +2,17 @@ import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loginWithToken } from "@/utils/statelessApi";
-import type { AuthInfo } from "@/types/stateless";
 
 interface TokenLoginProps {
   isBusy: boolean;
   onRefreshState: () => Promise<void>;
   onRefreshFiles: () => Promise<void>;
-  onAuthSuccess: (info: AuthInfo) => void;
 }
 
 export function TokenLogin({
   isBusy,
   onRefreshState,
   onRefreshFiles,
-  onAuthSuccess,
 }: TokenLoginProps) {
   const [token, setToken] = useState("");
   const [message, setMessage] = useState("");
@@ -60,7 +57,7 @@ export function TokenLogin({
         value={token}
         onChange={(e) => setToken(e.target.value)}
         placeholder="粘贴 Token（可通过 APP 抓包获取）"
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        className="h-9 w-full rounded-md border border-hairline bg-inset px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         disabled={isBusy || loading}
         autoComplete="off"
       />

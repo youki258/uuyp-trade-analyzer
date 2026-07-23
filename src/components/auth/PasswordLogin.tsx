@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loginWithPassword } from "@/utils/statelessApi";
-import type { AuthInfo } from "@/types/stateless";
 
 // 中国大陆手机号：1 开头、第二位 3-9、共 11 位数字
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
@@ -11,14 +10,12 @@ interface PasswordLoginProps {
   isBusy: boolean;
   onRefreshState: () => Promise<void>;
   onRefreshFiles: () => Promise<void>;
-  onAuthSuccess: (info: AuthInfo) => void;
 }
 
 export function PasswordLogin({
   isBusy,
   onRefreshState,
   onRefreshFiles,
-  onAuthSuccess,
 }: PasswordLoginProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -69,7 +66,7 @@ export function PasswordLogin({
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         placeholder="手机号"
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        className="h-9 w-full rounded-md border border-hairline bg-inset px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         disabled={isBusy || loading}
         autoComplete="username"
       />
@@ -78,7 +75,7 @@ export function PasswordLogin({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="密码"
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        className="h-9 w-full rounded-md border border-hairline bg-inset px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         disabled={isBusy || loading}
         autoComplete="current-password"
       />

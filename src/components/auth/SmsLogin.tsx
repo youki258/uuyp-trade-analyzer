@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sendSmsCode, verifySmsCode } from "@/utils/statelessApi";
-import type { AuthInfo } from "@/types/stateless";
 
 // 中国大陆手机号：1 开头、第二位 3-9、共 11 位数字
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
@@ -11,14 +10,12 @@ interface SmsLoginProps {
   isBusy: boolean;
   onRefreshState: () => Promise<void>;
   onRefreshFiles: () => Promise<void>;
-  onAuthSuccess: (info: AuthInfo) => void;
 }
 
 export function SmsLogin({
   isBusy,
   onRefreshState,
   onRefreshFiles,
-  onAuthSuccess,
 }: SmsLoginProps) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -110,7 +107,7 @@ export function SmsLogin({
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="手机号"
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        className="h-9 w-full rounded-md border border-hairline bg-inset px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         disabled={isBusy || loading}
       />
       <div className="grid grid-cols-2 gap-2">
@@ -133,11 +130,11 @@ export function SmsLogin({
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="验证码（手动短信可留空）"
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
+        className="h-9 w-full rounded-md border border-hairline bg-inset px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         disabled={isBusy || loading}
       />
       {manualMode && (
-        <div className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200 space-y-1">
+        <div className="space-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
           <p className="font-medium">手动短信验证步骤：</p>
           <ol className="list-decimal list-inside space-y-0.5">
             {smsUpContent && smsUpNumber ? (

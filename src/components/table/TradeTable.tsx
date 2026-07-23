@@ -8,6 +8,9 @@ interface TradeTableProps {
   records: TradeRecord[];
 }
 
+const controlClass =
+  "h-8 rounded-md border border-hairline bg-inset px-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary";
+
 export function TradeTable({ records }: TradeTableProps) {
   const [typeFilter, setTypeFilter] = useState<"all" | "buy" | "sell">("all");
   const [categoryFilter, setCategoryFilter] = useState<CommodityCategory | "all">("all");
@@ -35,23 +38,23 @@ export function TradeTable({ records }: TradeTableProps) {
   const totalPages = Math.ceil(filtered.length / pageSize);
 
   return (
-    <div className="glass-card overflow-hidden">
-      <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+    <div className="panel overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-hairline px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           共 {filtered.length} 条记录
         </div>
-        <div className="flex gap-2 items-center flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             placeholder="搜索商品..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-36"
+            className={`${controlClass} w-36`}
           />
           <select
             value={typeFilter}
             onChange={(e) => { setTypeFilter(e.target.value as typeof typeFilter); setPage(0); }}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className={controlClass}
           >
             <option value="all">全部类型</option>
             <option value="buy">买入</option>
@@ -60,7 +63,7 @@ export function TradeTable({ records }: TradeTableProps) {
           <select
             value={categoryFilter}
             onChange={(e) => { setCategoryFilter(e.target.value as typeof categoryFilter); setPage(0); }}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className={controlClass}
           >
             <option value="all">全部类别</option>
             {categories.map((c) => (
@@ -73,30 +76,30 @@ export function TradeTable({ records }: TradeTableProps) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/5 text-muted-foreground">
-              <th className="text-left px-4 py-3 font-medium">类型</th>
-              <th className="text-left px-4 py-3 font-medium">商品名称</th>
-              <th className="text-left px-4 py-3 font-medium">类别</th>
-              <th className="text-right px-4 py-3 font-medium">价格</th>
-              <th className="text-left px-4 py-3 font-medium">时间</th>
-              <th className="text-left px-4 py-3 font-medium">订单号</th>
+            <tr className="border-b border-hairline bg-inset/50 text-xs text-muted-foreground">
+              <th className="px-4 py-2.5 text-left font-medium">类型</th>
+              <th className="px-4 py-2.5 text-left font-medium">商品名称</th>
+              <th className="px-4 py-2.5 text-left font-medium">类别</th>
+              <th className="px-4 py-2.5 text-right font-medium">价格</th>
+              <th className="px-4 py-2.5 text-left font-medium">时间</th>
+              <th className="px-4 py-2.5 text-left font-medium">订单号</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-hairline">
             {paged.map((r, i) => (
-              <tr key={r.id + i} className="hover:bg-white/[0.02] transition-colors">
-                <td className="px-4 py-3">
+              <tr key={r.id + i} className="transition-colors hover:bg-white/[0.03]">
+                <td className="px-4 py-2.5">
                   <Badge variant={r.type === "buy" ? "buy" : "sell"}>
                     {r.type === "buy" ? "买入" : "卖出"}
                   </Badge>
                 </td>
-                <td className="px-4 py-3 max-w-[250px] truncate">{r.commodityName}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{CATEGORY_LABELS[r.category]}</td>
-                <td className={`px-4 py-3 text-right font-mono font-medium ${r.type === "buy" ? "text-blue-400" : "text-orange-400"}`}>
+                <td className="max-w-[250px] truncate px-4 py-2.5">{r.commodityName}</td>
+                <td className="px-4 py-2.5 text-xs text-muted-foreground">{CATEGORY_LABELS[r.category]}</td>
+                <td className={`px-4 py-2.5 text-right tnum font-medium ${r.type === "buy" ? "text-blue-400" : "text-orange-400"}`}>
                   {r.type === "buy" ? "-" : "+"}{formatCurrency(r.priceYuan)}
                 </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{r.tradeTimeStr}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{r.id.slice(-8)}</td>
+                <td className="px-4 py-2.5 text-xs text-muted-foreground">{r.tradeTimeStr}</td>
+                <td className="px-4 py-2.5 text-xs text-muted-foreground tnum">{r.id.slice(-8)}</td>
               </tr>
             ))}
           </tbody>
@@ -104,22 +107,22 @@ export function TradeTable({ records }: TradeTableProps) {
       </div>
 
       {totalPages > 1 && (
-        <div className="p-4 border-t border-white/5 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-hairline px-4 py-3">
+          <p className="text-xs text-muted-foreground tnum">
             第 {page + 1} / {totalPages} 页
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
-              className="px-3 py-1 rounded-lg text-xs bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="h-8 rounded-md border border-hairline bg-inset px-3 text-[13px] transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
             >
               上一页
             </button>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
-              className="px-3 py-1 rounded-lg text-xs bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="h-8 rounded-md border border-hairline bg-inset px-3 text-[13px] transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页
             </button>

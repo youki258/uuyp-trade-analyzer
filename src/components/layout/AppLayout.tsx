@@ -6,7 +6,7 @@ export function AppLayout() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <main className="ml-16 lg:ml-56 min-h-screen">
-        <div className="p-4 lg:p-8 max-w-[1600px] mx-auto">
+        <div className="px-6 lg:px-10 xl:px-12 py-8 lg:py-10 max-w-[1440px] mx-auto">
           <Outlet />
         </div>
       </main>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldCheck, Download, LogOut } from "lucide-react";
+import { Download, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SmsLogin } from "./SmsLogin";
 import { TokenLogin } from "./TokenLogin";
@@ -21,7 +21,6 @@ interface AuthPanelProps {
   isBusy: boolean;
   onRefreshState: () => Promise<void>;
   onRefreshFiles: () => Promise<void>;
-  onAuthSuccess: (info: AuthInfo) => void;
   onFetchStart: () => void;
   onFetchSuccess: (files: ServerFile[]) => void;
   onFetchError: (message: string) => void;
@@ -33,7 +32,6 @@ export function AuthPanel({
   isBusy,
   onRefreshState,
   onRefreshFiles,
-  onAuthSuccess,
   onFetchStart,
   onFetchSuccess,
   onFetchError,
@@ -74,90 +72,86 @@ export function AuthPanel({
   }
 
   return (
-    <section className="glass-card p-6 space-y-4 border-primary/20">
-      <div className="flex items-center gap-2 text-primary">
-        <ShieldCheck className="w-5 h-5" />
-        <span className="font-semibold">会话认证</span>
+    <section className="panel">
+      <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+        <h3 className="text-sm font-medium text-foreground">会话认证</h3>
         {authInfo.authenticated && (
-          <span className="text-xs text-emerald-400 ml-auto">
+          <span className="text-xs text-emerald-400">
             {authInfo.nickname || authInfo.userId || "已认证"}
           </span>
         )}
       </div>
 
-      {!authInfo.authenticated ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-1 rounded-md border border-white/10 bg-white/5 p-1">
-            {LOGIN_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setLoginMethod(tab.key)}
-                disabled={isBusy}
-                className={`rounded px-2 py-1.5 text-sm transition-colors ${
-                  loginMethod === tab.key
-                    ? "bg-primary/20 text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+      <div className="p-5">
+        {!authInfo.authenticated ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-0.5 rounded-md border border-hairline bg-inset p-0.5">
+              {LOGIN_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setLoginMethod(tab.key)}
+                  disabled={isBusy}
+                  className={`h-7 rounded px-2 text-xs transition-colors ${
+                    loginMethod === tab.key
+                      ? "bg-white/[0.08] text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                  {tab.recommended && (
+                    <span className="ml-1 text-[11px] text-primary">推荐</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {loginMethod === "token" && (
+              <TokenLogin
+                isBusy={isBusy}
+                onRefreshState={onRefreshState}
+                onRefreshFiles={onRefreshFiles}
+              />
+            )}
+            {loginMethod === "sms" && (
+              <SmsLogin
+                isBusy={isBusy}
+                onRefreshState={onRefreshState}
+                onRefreshFiles={onRefreshFiles}
+              />
+            )}
+            {loginMethod === "password" && (
+              <PasswordLogin
+                isBusy={isBusy}
+                onRefreshState={onRefreshState}
+                onRefreshFiles={onRefreshFiles}
+              />
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                onClick={handleFetch}
+                disabled={isBusy || fetchLoading}
               >
-                {tab.label}
-                {tab.recommended && (
-                  <span className="ml-1 text-xs text-emerald-400">推荐</span>
-                )}
-              </button>
-            ))}
-          </div>
-          {loginMethod === "token" && (
-            <TokenLogin
-              isBusy={isBusy}
-              onRefreshState={onRefreshState}
-              onRefreshFiles={onRefreshFiles}
-              onAuthSuccess={onAuthSuccess}
-            />
-          )}
-          {loginMethod === "sms" && (
-            <SmsLogin
-              isBusy={isBusy}
-              onRefreshState={onRefreshState}
-              onRefreshFiles={onRefreshFiles}
-              onAuthSuccess={onAuthSuccess}
-            />
-          )}
-          {loginMethod === "password" && (
-            <PasswordLogin
-              isBusy={isBusy}
-              onRefreshState={onRefreshState}
-              onRefreshFiles={onRefreshFiles}
-              onAuthSuccess={onAuthSuccess}
-            />
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Button
-              onClick={handleFetch}
-              disabled={isBusy || fetchLoading}
-              className="h-11"
-            >
-              {fetchLoading ? "正在抓取账单..." : "从悠悠有品抓取账单"}
-              <Download className="w-4 h-4 ml-2" />
-            </Button>
-            <Button
-              onClick={handleDestroy}
-              disabled={isBusy || destroyLoading}
-              variant="outline"
-              className="h-11"
-            >
-              销毁会话
-              <LogOut className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground text-center">
-            认证后会保存会话，抓取后可加载账单文件
-          </p>
-        </>
-      )}
+                {fetchLoading ? "正在抓取账单..." : "从悠悠有品抓取账单"}
+                <Download className="ml-2 h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleDestroy}
+                disabled={isBusy || destroyLoading}
+                variant="outline"
+              >
+                销毁会话
+                <LogOut className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              认证后会保存会话，抓取后可加载账单文件
+            </p>
+          </>
+        )}
+      </div>
     </section>
   );
 }

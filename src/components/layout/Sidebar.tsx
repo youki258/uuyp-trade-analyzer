@@ -21,19 +21,19 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const { hasData } = useTradeData();
+  const { hasData, records } = useTradeData();
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-16 lg:w-56 bg-[#0B0F19]/90 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col">
-      <div className="h-16 flex items-center gap-2 px-4 border-b border-white/5">
-        <Crosshair className="w-7 h-7 text-primary shrink-0" />
-        <span className="hidden lg:block font-bold text-lg tracking-tight">
+    <aside className="fixed left-0 top-0 bottom-0 w-16 lg:w-56 bg-[hsl(220_13%_6%)] border-r border-hairline z-50 flex flex-col">
+      <div className="h-14 flex items-center gap-2.5 px-4 border-b border-hairline">
+        <Crosshair className="w-6 h-6 text-primary shrink-0" />
+        <span className="hidden lg:block font-semibold text-[15px]">
           <span className="text-primary">UUYP</span>{" "}
           <span className="text-foreground/80">Analyzer</span>
         </span>
       </div>
 
-      <nav className="flex-1 py-4 space-y-1 px-2">
+      <nav className="flex-1 py-3 space-y-0.5 px-2">
         {navItems
           .filter((item) => item.always || hasData)
           .map((item) => (
@@ -43,24 +43,41 @@ export function Sidebar() {
               end={item.to === "/"}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                  "hover:bg-white/5 hover:text-foreground",
+                  "relative flex items-center gap-3 h-9 px-3 rounded-md text-[13px] transition-colors duration-200",
+                  "hover:text-foreground hover:bg-white/[0.04]",
                   isActive
-                    ? "bg-primary/10 text-primary glow-primary"
+                    ? "bg-white/[0.05] text-foreground before:absolute before:left-0 before:inset-y-1.5 before:w-0.5 before:rounded-full before:bg-primary"
                     : "text-muted-foreground",
                 )
               }
             >
-              <item.icon className="w-5 h-5 shrink-0" />
-              <span className="hidden lg:block">{item.label}</span>
+              {({ isActive }) => (
+                <>
+                  <item.icon
+                    className={cn(
+                      "w-[18px] h-[18px] shrink-0",
+                      isActive && "text-primary",
+                    )}
+                  />
+                  <span className="hidden lg:block">{item.label}</span>
+                </>
+              )}
             </NavLink>
           ))}
       </nav>
 
-      <div className="hidden lg:block p-4 border-t border-white/5">
-        <p className="text-xs text-muted-foreground/50 text-center">
-          CS2 饰品交易分析
-        </p>
+      <div className="p-4 border-t border-hairline">
+        <div className="flex items-center gap-2 justify-center lg:justify-start">
+          <span
+            className={cn(
+              "w-1.5 h-1.5 rounded-full shrink-0",
+              hasData ? "bg-profit-light" : "bg-muted-foreground/40",
+            )}
+          />
+          <p className="hidden lg:block text-xs text-muted-foreground">
+            {hasData ? `已加载 ${records.length} 条记录` : "未加载数据"}
+          </p>
+        </div>
       </div>
     </aside>
   );

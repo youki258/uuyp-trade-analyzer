@@ -1,56 +1,58 @@
 import type { DashboardStats } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
-import { TrendingUp, Clock, Receipt } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProfitLossSummaryProps {
   stats: DashboardStats;
 }
 
 export function ProfitLossSummary({ stats }: ProfitLossSummaryProps) {
-  const plPositive = stats.realizedPL >= 0;
+  const netPositive = stats.netProfitAfterFee >= 0;
+  const realizedPositive = stats.realizedPL >= 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="glass-card p-5 flex items-center gap-4">
-        <div className={`p-3 rounded-xl ${plPositive ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
-          <TrendingUp className={`w-6 h-6 ${plPositive ? "text-emerald-400" : "text-red-400"}`} />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">已实现盈亏</p>
-          <p className={`text-2xl font-bold ${plPositive ? "text-profit" : "text-loss"}`}>
-            {plPositive ? "+" : ""}{formatCurrency(stats.realizedPL)}
-          </p>
-        </div>
+    <div className="panel p-6 lg:p-8">
+      <div className="border-l-2 border-primary pl-4">
+        <p className="text-xs text-muted-foreground">扣费后净盈亏</p>
+        <p
+          className={cn(
+            "mt-2 text-hero tnum",
+            netPositive ? "text-profit-light" : "text-loss-light"
+          )}
+        >
+          {netPositive ? "+" : ""}
+          {formatCurrency(stats.netProfitAfterFee)}
+        </p>
       </div>
 
-      <div className="glass-card p-5 flex items-center gap-4">
-        <div className="p-3 rounded-xl bg-blue-500/10">
-          <Clock className="w-6 h-6 text-blue-400" />
+      <div className="mt-8 grid grid-cols-1 gap-6 border-t border-hairline pt-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-hairline">
+        <div className="sm:pr-6">
+          <p className="text-xs text-muted-foreground">已实现盈亏</p>
+          <p
+            className={cn(
+              "mt-1.5 text-metric tnum",
+              realizedPositive ? "text-profit-light" : "text-loss-light"
+            )}
+          >
+            {realizedPositive ? "+" : ""}
+            {formatCurrency(stats.realizedPL)}
+          </p>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">持仓成本估值</p>
-          <p className="text-2xl font-bold text-foreground">
+
+        <div className="sm:px-6">
+          <p className="text-xs text-muted-foreground">持仓成本估值</p>
+          <p className="mt-1.5 text-metric tnum text-foreground">
             {formatCurrency(stats.holdingValue)}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="mt-1 text-xs text-muted-foreground">
             共 {stats.buyCount - stats.sellCount} 件持仓中
           </p>
         </div>
-      </div>
 
-      <div className="glass-card p-5 flex items-center gap-4">
-        <div className="p-3 rounded-xl bg-amber-500/10">
-          <Receipt className="w-6 h-6 text-amber-400" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">提现手续费合计</p>
-          <p className="text-2xl font-bold text-amber-400">
+        <div className="sm:pl-6">
+          <p className="text-xs text-muted-foreground">提现手续费合计</p>
+          <p className="mt-1.5 text-metric tnum text-foreground">
             -{formatCurrency(stats.withdrawFeeTotal)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            扣费后净盈亏: <span className={stats.netProfitAfterFee >= 0 ? "text-profit" : "text-loss"}>
-              {formatCurrency(stats.netProfitAfterFee)}
-            </span>
           </p>
         </div>
       </div>

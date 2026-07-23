@@ -1,6 +1,5 @@
 import type { MatchedPair } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
-import { Package } from "lucide-react";
 import { CATEGORY_LABELS } from "@/types/trade";
 
 interface InventoryStatusProps {
@@ -25,36 +24,29 @@ export function InventoryStatus({ pairs }: InventoryStatusProps) {
   const items = [...grouped.values()].sort((a, b) => b.totalCost - a.totalCost);
 
   return (
-    <div className="glass-card p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Package className="w-5 h-5 text-blue-400" />
-          <h3 className="text-sm font-semibold text-foreground">持仓状态</h3>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">
-            共 {holding.length} 件持仓
-          </p>
-          <p className="text-sm font-bold text-foreground">
-            成本合计: {formatCurrency(totalCost)}
-          </p>
-        </div>
+    <div className="panel">
+      <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+        <h3 className="text-sm font-medium text-foreground">持仓状态</h3>
+        <p className="text-xs text-muted-foreground">
+          共 {holding.length} 件 · 成本合计{" "}
+          <span className="tnum text-foreground">{formatCurrency(totalCost)}</span>
+        </p>
       </div>
 
-      <div className="space-y-1 max-h-[300px] overflow-y-auto">
+      <div className="max-h-[300px] overflow-y-auto px-5">
         {items.map((item, i) => (
           <div
             key={i}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
+            className="flex items-center gap-3 border-b border-hairline py-2.5 last:border-0"
           >
-            <span className="text-xs text-muted-foreground w-16 shrink-0">{item.category}</span>
-            <span className="flex-1 text-sm truncate">{item.name}</span>
-            <span className="text-xs text-muted-foreground">x{item.count}</span>
-            <span className="text-sm font-mono text-foreground">{formatCurrency(item.totalCost)}</span>
+            <span className="w-16 shrink-0 text-xs text-muted-foreground">{item.category}</span>
+            <span className="flex-1 truncate text-sm">{item.name}</span>
+            <span className="text-xs text-muted-foreground tnum">x{item.count}</span>
+            <span className="text-sm tnum text-foreground">{formatCurrency(item.totalCost)}</span>
           </div>
         ))}
         {items.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-4">暂无持仓</p>
+          <p className="py-4 text-center text-xs text-muted-foreground">暂无持仓</p>
         )}
       </div>
     </div>

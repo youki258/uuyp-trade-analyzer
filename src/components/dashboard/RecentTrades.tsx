@@ -14,24 +14,24 @@ export function RecentTrades({ records, limit = 10 }: RecentTradesProps) {
     .slice(0, limit);
 
   return (
-    <div className="glass-card overflow-hidden">
-      <div className="p-4 border-b border-white/5">
-        <h3 className="text-sm font-semibold text-foreground">最近交易</h3>
+    <div className="panel overflow-hidden">
+      <div className="border-b border-hairline px-5 py-4">
+        <h3 className="text-sm font-medium text-foreground">最近交易</h3>
       </div>
-      <div className="divide-y divide-white/5">
+      <div className="divide-y divide-hairline">
         {recent.map((r, i) => (
-          <div key={r.id + i} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+          <div key={r.id + i} className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.03]">
             <Badge variant={r.type === "buy" ? "buy" : "sell"}>
               {r.type === "buy" ? "买入" : "卖出"}
             </Badge>
-            <span className="flex-1 text-sm truncate">{r.commodityName}</span>
-            <span className="text-xs text-muted-foreground hidden md:inline">
+            <span className="flex-1 truncate text-sm">{r.commodityName}</span>
+            <span className="hidden text-xs text-muted-foreground md:inline">
               {CATEGORY_LABELS[r.category]}
             </span>
-            <span className={`text-sm font-mono font-medium ${r.type === "buy" ? "text-blue-400" : "text-orange-400"}`}>
+            <span className={`text-sm tnum font-medium ${r.type === "buy" ? "text-blue-400" : "text-orange-400"}`}>
               {r.type === "buy" ? "-" : "+"}{formatCurrency(r.priceYuan)}
             </span>
-            <span className="text-xs text-muted-foreground hidden lg:inline">
+            <span className="hidden text-xs text-muted-foreground tnum lg:inline">
               {r.tradeTimeStr.slice(0, 10)}
             </span>
           </div>

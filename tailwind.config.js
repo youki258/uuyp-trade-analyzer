@@ -13,6 +13,9 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        panel: "hsl(var(--panel))",
+        inset: "hsl(var(--inset))",
+        hairline: "hsl(var(--hairline) / 0.06)",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -41,13 +44,16 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // 中国惯例：盈红亏绿
         profit: {
-          DEFAULT: "#10B981",
-          dark: "#059669",
+          DEFAULT: "#EF4444",
+          light: "#F87171",
+          dark: "#DC2626",
         },
         loss: {
-          DEFAULT: "#EF4444",
-          dark: "#DC2626",
+          DEFAULT: "#10B981",
+          light: "#34D399",
+          dark: "#059669",
         },
         cs2: {
           orange: "#DE9B35",
@@ -64,7 +70,33 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Noto Sans", "system-ui", "sans-serif"],
+        sans: [
+          "Inter",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          "sans-serif",
+        ],
+      },
+      fontSize: {
+        title: ["1.75rem", { lineHeight: "2.25rem", fontWeight: "600" }],
+        metric: [
+          "1.625rem",
+          { lineHeight: "2rem", letterSpacing: "-0.01em", fontWeight: "600" },
+        ],
+        hero: [
+          "2.25rem",
+          { lineHeight: "2.75rem", letterSpacing: "-0.02em", fontWeight: "600" },
+        ],
+      },
+      spacing: {
+        18: "4.5rem",
+        22: "5.5rem",
+        26: "6.5rem",
+        30: "7.5rem",
       },
       keyframes: {
         "fade-in": {

@@ -1,5 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { MatchedPair } from "@/types/trade";
+import { CHART } from "./chartTheme";
+import { ChartTooltip } from "./ChartTooltip";
 
 interface ProfitDistributionProps {
   pairs: MatchedPair[];
@@ -10,7 +12,7 @@ export function ProfitDistribution({ pairs }: ProfitDistributionProps) {
 
   if (realized.length === 0) {
     return (
-      <div className="glass-card p-6 flex items-center justify-center h-[300px] text-muted-foreground">
+      <div className="panel flex h-[300px] items-center justify-center p-6 text-sm text-muted-foreground">
         暂无已实现盈亏数据
       </div>
     );
@@ -35,46 +37,45 @@ export function ProfitDistribution({ pairs }: ProfitDistributionProps) {
   }
 
   return (
-    <div className="glass-card p-4">
-      <h3 className="text-sm font-semibold text-foreground mb-4">盈亏分布</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={buckets} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-          <XAxis
-            dataKey="range"
-            stroke="rgba(255,255,255,0.2)"
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
-            tickLine={false}
-          />
-          <YAxis
-            stroke="rgba(255,255,255,0.2)"
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }}
-            tickLine={false}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "rgba(15,20,35,0.95)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "8px",
-              fontSize: 12,
-            }}
-            labelStyle={{ color: "#E2E8F0" }}
-            itemStyle={{ color: "#E2E8F0" }}
-            formatter={(value) => [`${Number(value ?? 0)} 笔`, "数量"]}
-            labelFormatter={(label) => `区间: ¥${label}`}
-          />
-          <Bar dataKey="count" name="数量" radius={[4, 4, 0, 0]}>
-            {buckets.map((entry, i) => (
-              <Cell
-                key={i}
-                fill={parseFloat(entry.range) >= 0 ? "#10B981" : "#EF4444"}
-                fillOpacity={0.7}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="panel">
+      <div className="border-b border-hairline px-5 py-4">
+        <h3 className="text-sm font-medium text-foreground">盈亏分布</h3>
+      </div>
+      <div className="p-4">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={buckets} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+            <XAxis
+              dataKey="range"
+              stroke={CHART.axis}
+              tick={{ ...CHART.tick, fontSize: 10 }}
+              tickLine={false}
+            />
+            <YAxis
+              stroke={CHART.axis}
+              tick={CHART.tick}
+              tickLine={false}
+            />
+            <Tooltip
+              content={
+                <ChartTooltip
+                  formatValue={(v) => `${v} 笔`}
+                  formatLabel={(label) => `区间: ¥${label}`}
+                />
+              }
+            />
+            <Bar dataKey="count" name="数量" radius={[4, 4, 0, 0]}>
+              {buckets.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={parseFloat(entry.range) >= 0 ? CHART.profit : CHART.loss}
+                  fillOpacity={0.75}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
-

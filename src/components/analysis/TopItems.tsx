@@ -1,6 +1,5 @@
 import type { MatchedPair } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
-import { TrendingUp, TrendingDown } from "lucide-react";
 
 interface TopItemsProps {
   pairs: MatchedPair[];
@@ -19,52 +18,51 @@ export function TopItems({ pairs, limit = 5 }: TopItemsProps) {
     .slice(0, limit);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="glass-card p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-profit" />
-          <h3 className="text-sm font-semibold text-foreground">最赚钱 Top {limit}</h3>
-        </div>
-        <div className="space-y-2">
-          {topProfit.map((p, i) => (
-            <div
-              key={p.buyRecord.id + i}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
-            >
-              <span className="text-xs font-bold text-profit w-5">#{i + 1}</span>
-              <span className="flex-1 text-sm truncate">{p.commodityName}</span>
-              <span className="text-sm font-mono font-medium text-profit">
-                +{formatCurrency(p.profitLoss!)}
-              </span>
-            </div>
-          ))}
-          {topProfit.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-4">暂无数据</p>
-          )}
-        </div>
+    <div className="panel">
+      <div className="border-b border-hairline px-5 py-4">
+        <h3 className="text-sm font-medium text-foreground">单品盈亏排行</h3>
       </div>
-
-      <div className="glass-card p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingDown className="w-5 h-5 text-loss" />
-          <h3 className="text-sm font-semibold text-foreground">最亏损 Top {limit}</h3>
+      <div className="grid lg:grid-cols-2 lg:divide-x lg:divide-hairline">
+        <div className="px-5 py-4">
+          <p className="mb-2 text-xs text-muted-foreground">最盈利 Top {limit}</p>
+          <div>
+            {topProfit.map((p, i) => (
+              <div
+                key={p.buyRecord.id + i}
+                className="flex items-center gap-3 border-b border-hairline py-2.5 last:border-0"
+              >
+                <span className="w-6 text-xs text-muted-foreground tnum">{i + 1}</span>
+                <span className="flex-1 truncate text-sm">{p.commodityName}</span>
+                <span className="text-sm tnum text-profit-light">
+                  +{formatCurrency(p.profitLoss!)}
+                </span>
+              </div>
+            ))}
+            {topProfit.length === 0 && (
+              <p className="py-4 text-center text-xs text-muted-foreground">暂无数据</p>
+            )}
+          </div>
         </div>
-        <div className="space-y-2">
-          {topLoss.map((p, i) => (
-            <div
-              key={p.buyRecord.id + i}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
-            >
-              <span className="text-xs font-bold text-loss w-5">#{i + 1}</span>
-              <span className="flex-1 text-sm truncate">{p.commodityName}</span>
-              <span className="text-sm font-mono font-medium text-loss">
-                {formatCurrency(p.profitLoss!)}
-              </span>
-            </div>
-          ))}
-          {topLoss.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-4">暂无数据</p>
-          )}
+
+        <div className="border-t border-hairline px-5 py-4 lg:border-t-0">
+          <p className="mb-2 text-xs text-muted-foreground">最亏损 Top {limit}</p>
+          <div>
+            {topLoss.map((p, i) => (
+              <div
+                key={p.buyRecord.id + i}
+                className="flex items-center gap-3 border-b border-hairline py-2.5 last:border-0"
+              >
+                <span className="w-6 text-xs text-muted-foreground tnum">{i + 1}</span>
+                <span className="flex-1 truncate text-sm">{p.commodityName}</span>
+                <span className="text-sm tnum text-loss-light">
+                  {formatCurrency(p.profitLoss!)}
+                </span>
+              </div>
+            ))}
+            {topLoss.length === 0 && (
+              <p className="py-4 text-center text-xs text-muted-foreground">暂无数据</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -9,88 +9,69 @@ import {
   Legend,
 } from "recharts";
 import type { TimeSeriesPoint } from "@/types/trade";
+import { CHART } from "./chartTheme";
+import { ChartTooltip } from "./ChartTooltip";
 
 interface TimeSeriesChartProps {
   data: TimeSeriesPoint[];
   height?: number;
 }
 
-export function TimeSeriesChart({ data, height = 350 }: TimeSeriesChartProps) {
+export function TimeSeriesChart({ data, height = 400 }: TimeSeriesChartProps) {
   if (data.length === 0) {
     return (
-      <div className="glass-card p-6 flex items-center justify-center h-[350px] text-muted-foreground">
+      <div className="panel flex h-[400px] items-center justify-center p-6 text-sm text-muted-foreground">
         暂无数据
       </div>
     );
   }
 
   return (
-    <div className="glass-card p-4">
+    <div className="panel p-4">
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="buyGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#60A5FA" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#60A5FA" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="sellGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#FB923C" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#FB923C" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#00E5A0" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#00E5A0" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
           <XAxis
             dataKey="date"
-            stroke="rgba(255,255,255,0.2)"
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }}
+            stroke={CHART.axis}
+            tick={CHART.tick}
             tickLine={false}
           />
           <YAxis
-            stroke="rgba(255,255,255,0.2)"
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }}
+            stroke={CHART.axis}
+            tick={CHART.tick}
             tickLine={false}
             tickFormatter={(v) => `¥${v}`}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: "rgba(15,20,35,0.95)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "8px",
-              fontSize: 12,
-            }}
-            labelStyle={{ color: "rgba(255,255,255,0.6)" }}
-            itemStyle={{ color: "#E2E8F0" }}
-            formatter={(value) => [`¥${Number(value ?? 0).toFixed(2)}`, ""]}
+            content={<ChartTooltip formatValue={(v) => `¥${v.toFixed(2)}`} />}
           />
-          <Legend
-            wrapperStyle={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}
-          />
+          <Legend wrapperStyle={CHART.legend} />
           <Area
             type="monotone"
             dataKey="buyAmount"
             name="买入额"
-            stroke="#60A5FA"
-            fill="url(#buyGradient)"
+            stroke={CHART.buy}
+            fill={CHART.buy}
+            fillOpacity={0.08}
             strokeWidth={2}
           />
           <Area
             type="monotone"
             dataKey="sellAmount"
             name="卖出额"
-            stroke="#FB923C"
-            fill="url(#sellGradient)"
+            stroke={CHART.sell}
+            fill={CHART.sell}
+            fillOpacity={0.08}
             strokeWidth={2}
           />
           <Area
             type="monotone"
             dataKey="netAmount"
             name="净额"
-            stroke="#00E5A0"
-            fill="url(#netGradient)"
+            stroke={CHART.primary}
+            fill={CHART.primary}
+            fillOpacity={0.1}
             strokeWidth={2}
           />
         </AreaChart>

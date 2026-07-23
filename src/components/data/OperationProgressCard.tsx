@@ -1,4 +1,5 @@
 import { Loader2, CircleDashed, CheckCircle2, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface OperationProgressCardProps {
   title: string;
@@ -6,26 +7,33 @@ interface OperationProgressCardProps {
   tone?: "loading" | "info" | "success" | "error";
 }
 
-const toneStyles: Record<
-  NonNullable<OperationProgressCardProps["tone"]>,
-  string
-> = {
-  loading: "border-primary/30 bg-primary/5 text-primary",
-  info: "border-white/10 bg-white/[0.03] text-foreground",
-  success: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400",
-  error: "border-red-500/30 bg-red-500/5 text-red-400",
+type Tone = NonNullable<OperationProgressCardProps["tone"]>;
+
+/** 左侧 2px 状态竖条（语义：成功绿 / 错误红，与盈亏红绿无关） */
+const barStyles: Record<Tone, string> = {
+  loading: "bg-primary",
+  info: "bg-white/20",
+  success: "bg-emerald-400",
+  error: "bg-red-400",
 };
 
-function toneIcon(tone: NonNullable<OperationProgressCardProps["tone"]>) {
+const iconStyles: Record<Tone, string> = {
+  loading: "text-primary",
+  info: "text-muted-foreground",
+  success: "text-emerald-400",
+  error: "text-red-400",
+};
+
+function toneIcon(tone: Tone) {
   switch (tone) {
     case "loading":
-      return <Loader2 className="w-5 h-5 animate-spin" />;
+      return <Loader2 className="h-4 w-4 animate-spin" />;
     case "success":
-      return <CheckCircle2 className="w-5 h-5" />;
+      return <CheckCircle2 className="h-4 w-4" />;
     case "error":
-      return <AlertCircle className="w-5 h-5" />;
+      return <AlertCircle className="h-4 w-4" />;
     default:
-      return <CircleDashed className="w-5 h-5" />;
+      return <CircleDashed className="h-4 w-4" />;
   }
 }
 
@@ -35,12 +43,13 @@ export function OperationProgressCard({
   tone = "info",
 }: OperationProgressCardProps) {
   return (
-    <section className={`glass-card p-4 space-y-2 border ${toneStyles[tone]}`}>
-      <div className="flex items-center gap-2 font-semibold">
+    <section className="panel relative overflow-hidden p-4 pl-5">
+      <span className={cn("absolute inset-y-0 left-0 w-0.5", barStyles[tone])} />
+      <div className={cn("flex items-center gap-2 text-sm font-medium", iconStyles[tone])}>
         {toneIcon(tone)}
-        <span>{title}</span>
+        <span className="text-foreground">{title}</span>
       </div>
-      <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{message}</p>
     </section>
   );
 }

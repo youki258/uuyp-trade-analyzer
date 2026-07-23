@@ -3,6 +3,8 @@ import { StatCards } from "@/components/dashboard/StatCards";
 import { ProfitLossSummary } from "@/components/dashboard/ProfitLossSummary";
 import { RecentTrades } from "@/components/dashboard/RecentTrades";
 import { DirectionPieChart } from "@/components/charts/DirectionPieChart";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useTradeData } from "@/hooks/useTradeData";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
@@ -13,41 +15,50 @@ export function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-        <p className="text-muted-foreground text-lg animate-pulse">正在加载数据...</p>
+      <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
+        <p className="animate-pulse text-sm text-muted-foreground">正在加载数据...</p>
       </div>
     );
   }
 
   if (!hasData || !stats) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center text-center space-y-4">
-        <p className="text-muted-foreground text-lg">暂无数据</p>
-        <Button onClick={() => navigate("/")} variant="outline">
-          <Upload className="w-4 h-4 mr-2" />
-          上传账单文件
-        </Button>
+      <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
+        <EmptyState
+          title="暂无交易数据"
+          description="上传悠悠有品导出的账单 CSV，或从服务器抓取账单后开始分析"
+          action={
+            <Button onClick={() => navigate("/")} variant="outline">
+              <Upload className="mr-2 h-4 w-4" />
+              上传账单文件
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">总览仪表盘</h1>
-        <p className="text-sm text-muted-foreground mt-1">交易数据全局概览</p>
-      </div>
+    <div className="animate-fade-in">
+      <PageHeader title="总览仪表盘" description="交易数据全局概览" />
 
-      <StatCards stats={stats} />
-      <ProfitLossSummary stats={stats} />
+      <div className="space-y-6">
+        <StatCards stats={stats} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DirectionPieChart
-          buyCount={stats.buyCount}
-          sellCount={stats.sellCount}
-          buyAmount={stats.totalBuy}
-          sellAmount={stats.totalSell}
-        />
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <div className="xl:col-span-7">
+            <ProfitLossSummary stats={stats} />
+          </div>
+          <div className="xl:col-span-5">
+            <DirectionPieChart
+              buyCount={stats.buyCount}
+              sellCount={stats.sellCount}
+              buyAmount={stats.totalBuy}
+              sellAmount={stats.totalSell}
+            />
+          </div>
+        </div>
+
         <RecentTrades records={records} limit={8} />
       </div>
     </div>

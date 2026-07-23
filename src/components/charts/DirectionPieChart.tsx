@@ -1,4 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { CHART } from "./chartTheme";
+import { ChartTooltip } from "./ChartTooltip";
 
 interface DirectionPieChartProps {
   buyCount: number;
@@ -7,7 +9,7 @@ interface DirectionPieChartProps {
   sellAmount: number;
 }
 
-const COLORS = ["#60A5FA", "#FB923C"];
+const COLORS = [CHART.buy, CHART.sell];
 
 export function DirectionPieChart({ buyCount, sellCount, buyAmount, sellAmount }: DirectionPieChartProps) {
   const countData = [
@@ -50,15 +52,14 @@ export function DirectionPieChart({ buyCount, sellCount, buyAmount, sellAmount }
 
     return (
       <g>
-        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill || "#94A3B8"} strokeWidth={1.2} fill="none" />
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill || "#8A8F98"} strokeWidth={1.2} fill="none" />
         <text
           x={ex + (cos >= 0 ? 4 : -4)}
           y={ey}
-          fill={fill || "#E2E8F0"}
+          fill={fill || "#8A8F98"}
           textAnchor={textAnchor}
           dominantBaseline="central"
-          fontSize={12}
-          fontWeight={600}
+          fontSize={11}
         >
           {`${name ?? ""} ${(percent * 100).toFixed(1)}%`}
         </text>
@@ -67,11 +68,13 @@ export function DirectionPieChart({ buyCount, sellCount, buyAmount, sellAmount }
   };
 
   return (
-    <div className="glass-card p-4">
-      <h3 className="text-sm font-semibold text-foreground mb-4">买卖方向分布</h3>
-      <div className="grid grid-cols-2 gap-4">
+    <div className="panel">
+      <div className="border-b border-hairline px-5 py-4">
+        <h3 className="text-sm font-medium text-foreground">买卖方向分布</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-4 p-4">
         <div>
-          <p className="text-xs text-muted-foreground text-center mb-2">笔数</p>
+          <p className="mb-2 text-center text-xs text-muted-foreground">笔数</p>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
@@ -89,32 +92,23 @@ export function DirectionPieChart({ buyCount, sellCount, buyAmount, sellAmount }
                   <Cell key={i} fill={COLORS[i]} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(15,20,35,0.95)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "8px",
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "#E2E8F0" }}
-                itemStyle={{ color: "#E2E8F0" }}
-              />
+              <Tooltip content={<ChartTooltip formatValue={(v) => `${v} 笔`} />} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="space-y-1 mt-2">
+          <div className="mt-2 space-y-1">
             {countData.map((item, i) => (
               <div key={item.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-                  <span style={{ color: COLORS[i] }}>{item.lineLabel}</span>
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />
+                  <span className="text-muted-foreground">{item.lineLabel}</span>
                 </div>
-                <span className="text-muted-foreground">{item.value} 笔</span>
+                <span className="tnum text-foreground">{item.value} 笔</span>
               </div>
             ))}
           </div>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground text-center mb-2">金额</p>
+          <p className="mb-2 text-center text-xs text-muted-foreground">金额</p>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
@@ -132,27 +126,17 @@ export function DirectionPieChart({ buyCount, sellCount, buyAmount, sellAmount }
                   <Cell key={i} fill={COLORS[i]} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(15,20,35,0.95)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "8px",
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "#E2E8F0" }}
-                itemStyle={{ color: "#E2E8F0" }}
-                formatter={(value) => [`¥${Number(value ?? 0).toFixed(2)}`, ""]}
-              />
+              <Tooltip content={<ChartTooltip formatValue={(v) => `¥${v.toFixed(2)}`} />} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="space-y-1 mt-2">
+          <div className="mt-2 space-y-1">
             {amountData.map((item, i) => (
               <div key={item.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-                  <span style={{ color: COLORS[i] }}>{item.lineLabel}</span>
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />
+                  <span className="text-muted-foreground">{item.lineLabel}</span>
                 </div>
-                <span className="text-muted-foreground">¥{item.value.toFixed(2)}</span>
+                <span className="tnum text-foreground">¥{item.value.toFixed(2)}</span>
               </div>
             ))}
           </div>

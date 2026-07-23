@@ -273,16 +273,16 @@ export function LoginPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center animate-fade-in">
-      <div className="w-full max-w-3xl space-y-6">
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <Crosshair className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">
+      <div className="w-full max-w-xl space-y-6">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center gap-2">
+            <Crosshair className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-semibold">
               <span className="text-primary">UUYP</span>{" "}
               <span className="text-foreground/90">Bill Analyzer</span>
             </h1>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             上传悠悠有品导出的 CSV 交易账单，自动计算盈亏、追踪持仓、分析交易趋势
           </p>
         </div>
@@ -292,11 +292,6 @@ export function LoginPage() {
           isBusy={globalBusy}
           onRefreshState={refreshAuthState}
           onRefreshFiles={refreshServerFiles}
-          onAuthSuccess={(info) => {
-            setAuthInfo(info);
-            setWorkflowTone("success");
-            setWorkflowMessage("认证成功");
-          }}
           onFetchStart={() => {
             setWorkflowTone("loading");
             setWorkflowMessage("正在从悠悠有品抓取账单，请稍候...");
@@ -334,13 +329,13 @@ export function LoginPage() {
         />
 
         {error && (
-          <div className="glass-card p-4 border-red-500/30 bg-red-500/5 text-red-400 text-sm text-center">
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-red-400">
             {error}
           </div>
         )}
 
         {serverError && (
-          <div className="glass-card p-4 border-red-500/30 bg-red-500/5 text-red-400 text-sm text-center">
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-red-400">
             {serverError}
           </div>
         )}
