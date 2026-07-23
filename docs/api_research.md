@@ -155,6 +155,18 @@ python app.py
 
 > 以上接口来源于 Steamauto 源码（2026年3月 v5.8.3），覆盖出售/购买/租赁上架/租出订单等场景。
 
+**登录认证接口（本项目 2026-07-23 实测）：**
+
+| 接口功能 | 端点 | 说明 |
+|---------|------|------|
+| 发送登录短信验证码 | `POST /api/user/Auth/SendSignInSmsCode` | body: Area, Mobile, Sessionid(deviceId), Code；数据中心 IP 返回 `Code=5050`（降级为手动上行短信验证）而非拒绝 |
+| 获取上行短信配置 | `GET /api/user/Auth/GetSmsUpSignInConfig` | 带 APP headers，无参数；返回 `Data.SmsUpContent`（短信内容）与 `Data.SmsUpNumber`（目标号码）；**数据中心 IP 可正常调用，无需官方 APP** |
+| 短信验证码登录 | `POST /api/user/Auth/SmsSignIn` | body: Area, Code, Sessionid, Mobile, TenDay |
+| 上行短信验证登录 | `POST /api/user/Auth/SmsUpSignIn` | 同上但 Code 传空串；用户手动发过上行短信后调用，Sessionid 须与 SendSignInSmsCode 一致 |
+| 密码登录 | `POST /api/user/Auth/PwdSignIn` | Web 端方式 |
+
+> 5050 手动短信完整流程：`SendSignInSmsCode` 返回 5050 → `GetSmsUpSignInConfig` 取内容/号码 → 用户本机发送该内容到该号码 → `SmsUpSignIn`（空 Code）取 Token。端点来源：Steamauto `uuyoupinapi` 模块。
+
 **认证方式：** 密码/短信登录后获取 Bearer Token，后续请求携带：
 ```
 Authorization: Bearer {Token}

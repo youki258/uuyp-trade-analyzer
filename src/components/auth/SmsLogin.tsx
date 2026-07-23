@@ -23,6 +23,9 @@ export function SmsLogin({
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
+  const [manualMode, setManualMode] = useState(false);
+  const [smsUpContent, setSmsUpContent] = useState("");
+  const [smsUpNumber, setSmsUpNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSend() {
@@ -40,13 +43,22 @@ export function SmsLogin({
     try {
       const result = await sendSmsCode(phoneTrim);
       if (result.status === "ok") {
+        const manual = result.requiresManualSms === true;
+        setManualMode(manual);
+        setSmsUpContent(result.smsUpContent || "");
+        setSmsUpNumber(result.smsUpNumber || "");
         setMessage(
           result.requiresManualSms
-            ? "需手动短信验证，完成后可直接点验证码登录"
+            ? "自动发送受限，请改用手动短信验证"
             : "验证码已发送",
         );
       } else {
-        setMessage(result.message || "发送失败");
+        setManualMode(false);
+        setMessage(
+          result.hint === "manual_or_token"
+            ? `${result.message || "发送失败"}（可改用 Token 登录）`
+            : result.message || "发送失败",
+        );
       }
     } catch {
       setMessage("网络错误，请重试");
@@ -72,6 +84,9 @@ export function SmsLogin({
       if (result.status === "ok") {
         setPhone("");
         setCode("");
+        setManualMode(false);
+        setSmsUpContent("");
+        setSmsUpNumber("");
         setMessage("短信登录成功");
         await onRefreshState();
         await onRefreshFiles();
@@ -121,6 +136,26 @@ export function SmsLogin({
         className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
         disabled={isBusy || loading}
       />
+      {manualMode && (
+        <div className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200 space-y-1">
+          <p className="font-medium">手动短信验证步骤：</p>
+          <ol className="list-decimal list-inside space-y-0.5">
+            {smsUpContent && smsUpNumber ? (
+              <li>
+                用上方手机号对应的手机发送短信「
+                <span className="font-semibold select-all">{smsUpContent}</span>
+                」到号码「
+                <span className="font-semibold select-all">{smsUpNumber}</span>
+                」；
+              </li>
+            ) : (
+              <li>打开悠悠有品官方 APP 并用上方手机号触发登录，APP 会显示上行短信的内容与目标号码，按提示用本机发送；</li>
+            )}
+            <li>发送完成后回到本页面，验证码留空；</li>
+            <li>直接点击「验证码登录」完成登录。</li>
+          </ol>
+        </div>
+      )}
       {message && (
         <p className="text-sm text-primary">{message}</p>
       )}

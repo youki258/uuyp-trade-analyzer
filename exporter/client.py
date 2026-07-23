@@ -228,6 +228,18 @@ class UUYPClient:
         return result, device_info, headers
 
     @staticmethod
+    def get_sms_up_sign_in_config(headers: Dict) -> Dict:
+        """
+        获取上行短信验证配置（5050 手动短信的内容与目标号码）
+        来源：Steamauto 源码（uuyoupinapi.get_smsUpSignInConfig）
+        :param headers: send_sms_code 返回的 APP 请求头
+        :return: API 响应，成功时 Data 含 SmsUpContent / SmsUpNumber
+        """
+        url = f"{UUYPClient.BASE_URL}/api/user/Auth/GetSmsUpSignInConfig"
+        response = requests.get(url, headers=headers, timeout=15)
+        return response.json()
+
+    @staticmethod
     def sms_sign_in(phone: str, code: str, session_id: str, headers: Dict = None) -> Dict:
         """
         通过短信验证码登录

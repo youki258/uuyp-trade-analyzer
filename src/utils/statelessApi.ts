@@ -90,29 +90,84 @@ export async function uploadCsvToSession(
   };
 }
 
+export async function loginWithToken(token: string): Promise<ApiResult> {
+  const res = await fetch("/api/auth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const payload = await parseJson<ApiResult>(res);
+  if (!res.ok) {
+    return {
+      status: "error",
+      message: payload?.message || "Token 登录失败",
+      code: payload?.code,
+    };
+  }
+  return { status: "ok", message: payload?.message };
+}
+
+export async function loginWithPassword(
+  username: string,
+  password: string,
+): Promise<ApiResult> {
+  const res = await fetch("/api/auth/pwd", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const payload = await parseJson<ApiResult>(res);
+  if (!res.ok) {
+    return {
+      status: "error",
+      message: payload?.message || "密码登录失败",
+      code: payload?.code,
+    };
+  }
+  return { status: "ok", message: payload?.message };
+}
+
 export async function sendSmsCode(
   phone: string,
-): Promise<ApiResult & { requiresManualSms?: boolean }> {
+): Promise<
+  ApiResult & {
+    requiresManualSms?: boolean;
+    hint?: string;
+    smsUpContent?: string;
+    smsUpNumber?: string;
+  }
+> {
   const res = await fetch("/api/auth/sms/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone }),
     signal: AbortSignal.timeout(15000),
   });
-  const payload = await parseJson<ApiResult & { requiresManualSms?: boolean }>(
-    res,
-  );
+  const payload = await parseJson<
+    ApiResult & {
+      requiresManualSms?: boolean;
+      hint?: string;
+      smsUpContent?: string;
+      smsUpNumber?: string;
+    }
+  >(res);
   if (!res.ok) {
     return {
       status: "error",
       message: payload?.message || "短信发送失败",
       code: payload?.code,
+      hint: payload?.hint,
     };
   }
   return {
     status: "ok",
     message: payload?.message,
     requiresManualSms: payload?.requiresManualSms,
+    hint: payload?.hint,
+    smsUpContent: payload?.smsUpContent,
+    smsUpNumber: payload?.smsUpNumber,
   };
 }
 

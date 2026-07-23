@@ -2,8 +2,19 @@ import { useState } from "react";
 import { ShieldCheck, Download, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SmsLogin } from "./SmsLogin";
+import { TokenLogin } from "./TokenLogin";
+import { PasswordLogin } from "./PasswordLogin";
 import type { AuthInfo, ServerFile } from "@/types/stateless";
 import { destroySession, startFetch } from "@/utils/statelessApi";
+
+type LoginMethod = "sms" | "password" | "token";
+
+const LOGIN_TABS: { key: LoginMethod; label: string; recommended?: boolean }[] =
+  [
+    { key: "sms", label: "短信", recommended: true },
+    { key: "password", label: "密码" },
+    { key: "token", label: "Token" },
+  ];
 
 interface AuthPanelProps {
   authInfo: AuthInfo;
@@ -30,6 +41,7 @@ export function AuthPanel({
 }: AuthPanelProps) {
   const [fetchLoading, setFetchLoading] = useState(false);
   const [destroyLoading, setDestroyLoading] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("sms");
 
   async function handleFetch() {
     setFetchLoading(true);
@@ -74,12 +86,52 @@ export function AuthPanel({
       </div>
 
       {!authInfo.authenticated ? (
-        <SmsLogin
-          isBusy={isBusy}
-          onRefreshState={onRefreshState}
-          onRefreshFiles={onRefreshFiles}
-          onAuthSuccess={onAuthSuccess}
-        />
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-1 rounded-md border border-white/10 bg-white/5 p-1">
+            {LOGIN_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setLoginMethod(tab.key)}
+                disabled={isBusy}
+                className={`rounded px-2 py-1.5 text-sm transition-colors ${
+                  loginMethod === tab.key
+                    ? "bg-primary/20 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+                {tab.recommended && (
+                  <span className="ml-1 text-xs text-emerald-400">推荐</span>
+                )}
+              </button>
+            ))}
+          </div>
+          {loginMethod === "token" && (
+            <TokenLogin
+              isBusy={isBusy}
+              onRefreshState={onRefreshState}
+              onRefreshFiles={onRefreshFiles}
+              onAuthSuccess={onAuthSuccess}
+            />
+          )}
+          {loginMethod === "sms" && (
+            <SmsLogin
+              isBusy={isBusy}
+              onRefreshState={onRefreshState}
+              onRefreshFiles={onRefreshFiles}
+              onAuthSuccess={onAuthSuccess}
+            />
+          )}
+          {loginMethod === "password" && (
+            <PasswordLogin
+              isBusy={isBusy}
+              onRefreshState={onRefreshState}
+              onRefreshFiles={onRefreshFiles}
+              onAuthSuccess={onAuthSuccess}
+            />
+          )}
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

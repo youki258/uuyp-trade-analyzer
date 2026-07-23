@@ -384,7 +384,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         msg = _normalize_msg(result)
 
         if code not in {0, 5050}:
-            return jsonify({"status": "error", "code": code, "message": msg}), 400
+            return jsonify({"status": "error", "code": code, "message": msg, "hint": "manual_or_token"}), 400
 
         g.session_record.data["sms"] = {
             "phone": phone,
@@ -393,6 +393,22 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             "headers": headers,
             "createdAt": time.time(),
         }
+
+        # 5050 手动短信：尝试获取上行短信内容与目标号码，失败时静默降级
+        sms_up_content = ""
+        sms_up_number = ""
+        if code == 5050:
+            try:
+                from exporter.client import UUYPClient
+
+                config_result = UUYPClient.get_sms_up_sign_in_config(headers)
+                config_data = _normalize_data(config_result)
+                sms_up_content = str(config_data.get("SmsUpContent", "")).strip()
+                sms_up_number = str(config_data.get("SmsUpNumber", "")).strip()
+                _audit("auth.sms.up_config", sessionId=g.session_id, ok=bool(sms_up_content and sms_up_number))
+            except Exception:
+                print("[auth] fetch sms-up config failed")
+
         _audit("auth.sms.send", sessionId=g.session_id, phone=phone, code=code)
 
         return jsonify(
@@ -402,6 +418,8 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 "message": msg,
                 "requiresManualSms": code == 5050,
                 "requestId": data.get("RequestId", ""),
+                "smsUpContent": sms_up_content,
+                "smsUpNumber": sms_up_number,
             }
         )
 
