@@ -20,10 +20,12 @@
 
 ```bash
 # Python 后端（uv 管理依赖）
+cd backend
 uv sync                          # 安装运行依赖
 uv sync --all-extras             # 安装运行 + 开发依赖（含 pytest）
 
 # 前端（npm 管理依赖）
+cd frontend
 npm install                      # 安装前端依赖
 ```
 
@@ -31,12 +33,12 @@ npm install                      # 安装前端依赖
 
 ```bash
 # 方式一：后端 + 前端分别启动（推荐开发时用）
-uv run python app.py --port 8765 --host 127.0.0.1   # 后端
-npm run dev                                          # 前端（Vite dev server，热更新）
+cd backend && uv run python app.py --port 8765 --host 127.0.0.1   # 后端
+cd frontend && npm run dev                                         # 前端（Vite dev server，热更新）
 
 # 方式二：构建前端后用后端服务托管
-npm run build                   # 构建前端到 static/
-uv run python app.py            # 后端同时托管前端静态文件
+cd frontend && npm run build    # 构建前端到 ../static/
+cd backend && uv run python app.py  # 后端同时托管前端静态文件
 ```
 
 开发模式下后端使用 Flask 内置服务器（单线程），生产模式使用 gunicorn（4 worker）。
@@ -76,8 +78,8 @@ git commit -m "fix: 简要描述"
 
 # 3. 如果改动涉及逻辑，补测试（见下方测试规范）
 # 4. 本地跑测试确认通过
-npx vitest run          # 前端测试
-uv run pytest tests/ -v  # 后端测试
+cd frontend && npx vitest run          # 前端测试
+cd backend && uv run pytest tests/ -v  # 后端测试
 
 # 5. 推分支
 git push -u origin fix/your-issue
@@ -143,15 +145,15 @@ profitLoss 设为 null，不再虚增已实现盈亏。
 
 | 层 | 框架 | 命令 |
 |----|------|------|
-| 前端逻辑 | vitest | `npx vitest run` |
-| 后端逻辑 | pytest | `uv run pytest tests/ -v` |
-| 监听模式 | vitest watch | `npx vitest` |
+| 前端逻辑 | vitest | `cd frontend && npx vitest run` |
+| 后端逻辑 | pytest | `cd backend && uv run pytest tests/ -v` |
+| 监听模式 | vitest watch | `cd frontend && npx vitest` |
 
 ### 文件位置
 
 ```
-src/utils/profitMatcher.test.ts     # 前端测试与源文件同目录，*.test.ts
-tests/test_rate_limit.py             # 后端测试在 tests/ 目录
+frontend/src/utils/profitMatcher.test.ts     # 前端测试与源文件同目录，*.test.ts
+backend/tests/test_rate_limit.py             # 后端测试在 backend/tests/ 目录
 ```
 
 ### 什么时候需要写测试

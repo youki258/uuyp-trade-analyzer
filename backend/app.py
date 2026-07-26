@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
-STATIC_DIR = BASE_DIR / "static"
+STATIC_DIR = BASE_DIR.parent / "static"
 sys.path.insert(0, str(BASE_DIR))
 
 from server.app import create_stateless_app

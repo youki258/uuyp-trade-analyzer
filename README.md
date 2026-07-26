@@ -37,10 +37,12 @@ Prerequisites: Python 3.11+ with [uv](https://docs.astral.sh/uv/), Node.js 22+.
 
 ```bash
 # 1. Build the frontend (outputs to static/)
+cd frontend
 npm install
 npm run build
 
 # 2. Install backend dependencies
+cd ../backend
 uv sync
 
 # 3. Start the server
@@ -51,10 +53,11 @@ uv run python app.py
 CLI options:
 
 ```bash
+cd backend
 python app.py --port 8080 --host 127.0.0.1
 ```
 
-> The Flask server hosts the built frontend from `static/`. If you skip step 1, the UI will be missing or outdated. For frontend development workflow (vite dev, lint, etc.), see [docs/development.md](docs/development.md).
+> The Flask server hosts the built frontend from `static/` (project root). If you skip step 1, the UI will be missing or outdated. For frontend development workflow (vite dev, lint, etc.), see [docs/development.md](docs/development.md).
 
 ## Docker
 
@@ -121,33 +124,37 @@ See [.env.example](.env.example) for a commented template. An optional `UUYP_PRO
 ## Project Structure
 
 ```
-├── app.py                    # Entry point, CLI args, starts Flask
-├── server/                   # Flask stateless backend
-│   ├── app.py                # Routes and core logic
-│   ├── config.py             # Environment config
-│   ├── session_store.py      # In-memory session management
-│   ├── storage.py            # Temp file storage (per-session)
-│   ├── download_tickets.py   # One-time download tokens
-│   └── rate_limit.py         # In-memory rate limiter
-├── exporter/                 # UUYP API client
-│   ├── client.py             # Auth + order fetching (with uk verification)
-│   └── bill_exporter.py      # Full pagination fetch + CSV export
-├── src/                      # React frontend source
-│   ├── pages/                # Dashboard, ProfitAnalysis, Trend, CS2Analysis, TradeDetail, Login
-│   ├── components/           # Charts, tables, upload panels, auth, layout
-│   ├── hooks/                # React hooks
-│   ├── utils/                # CSV parser, FIFO matcher, CS2 analyzer
-│   └── types/                # TypeScript type definitions
-├── tests/                    # Backend pytest suite
-├── static/                   # Vite build output (served by Flask)
+├── backend/                  # Python backend
+│   ├── app.py                # Entry point, CLI args, starts Flask/gunicorn
+│   ├── server/               # Flask stateless service
+│   │   ├── app.py            # Routes and core logic
+│   │   ├── config.py         # Environment config
+│   │   ├── session_store.py  # In-memory session management
+│   │   ├── storage.py        # Temp file storage (per-session)
+│   │   ├── download_tickets.py # One-time download tokens
+│   │   └── rate_limit.py     # In-memory rate limiter
+│   ├── exporter/             # UUYP API client
+│   │   ├── client.py         # Auth + order fetching (with uk verification)
+│   │   └── bill_exporter.py  # Full pagination fetch + CSV export
+│   ├── tests/                # Backend pytest suite
+│   ├── pyproject.toml
+│   └── uv.lock
+├── frontend/                 # React frontend
+│   ├── src/
+│   │   ├── pages/            # Dashboard, ProfitAnalysis, Trend, CS2Analysis, TradeDetail, Login
+│   │   ├── components/       # Charts, tables, upload panels, auth, layout
+│   │   ├── hooks/            # React hooks
+│   │   ├── utils/            # CSV parser, FIFO matcher, CS2 analyzer
+│   │   └── types/            # TypeScript type definitions
+│   ├── public/               # Fonts and static assets
+│   ├── package.json
+│   └── vite.config.ts
+├── static/                   # Vite build output (served by Flask, git-ignored)
 ├── docs/                     # Documentation
 ├── .github/workflows/        # CI: test + build + push to ghcr.io
 ├── .env.example              # Environment variable template
-├── Dockerfile
-├── pyproject.toml
-└── vite.config.ts
+└── Dockerfile                # Multi-stage: node build → python runtime
 ```
-
 ## Architecture
 
 - **Stateless** — No external database. Sessions and files live in memory + temp directory. Restart = clean slate.

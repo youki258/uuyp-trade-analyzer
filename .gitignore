@@ -2,12 +2,16 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.venv/
-venv/
+backend/.venv/
+backend/venv/
 
 # Node
 node_modules/
-dist/
+frontend/node_modules/
+frontend/dist/
+
+# Build output
+static/
 
 # IDE
 .vscode/
@@ -23,8 +27,16 @@ Thumbs.db
 .env.local
 token.txt
 
-# WorkBuddy (project memory, not for git)
+# AI tool configs (not for git)
+.claude/
+.meituan-catpaw/
 .workbuddy/
+.ai-review/
+.opencode/
+
+# Test cache
+.pytest_cache/
+backend/.pytest_cache/
 
 # Output
 output/
