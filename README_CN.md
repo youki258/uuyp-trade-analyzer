@@ -124,31 +124,36 @@ docker pull ghcr.io/youki258/uuyp-trade-analyzer:latest
 ## 项目结构
 
 ```
-├── app.py                    # 入口：CLI 参数，启动 Flask
-├── server/                   # Flask 无状态后端
-│   ├── app.py                # 路由与核心逻辑
-│   ├── config.py             # 环境变量配置
-│   ├── session_store.py      # 内存会话管理
-│   ├── storage.py            # 临时文件存储（按会话隔离）
-│   ├── download_tickets.py   # 一次性下载令牌
-│   └── rate_limit.py         # 内存限流器
-├── exporter/                 # 悠悠有品 API 客户端
-│   ├── client.py             # 认证 + 订单抓取（含 uk 设备校验）
-│   └── bill_exporter.py      # 全量分页抓取 + CSV 导出
-├── src/                      # React 前端源码
-│   ├── pages/                # Dashboard、ProfitAnalysis、Trend、CS2Analysis、TradeDetail、Login
-│   ├── components/           # 图表、表格、上传面板、认证、布局组件
-│   ├── hooks/                # React hooks
-│   ├── utils/                # CSV 解析、FIFO 匹配、CS2 分析器
-│   └── types/                # TypeScript 类型定义
-├── tests/                    # 后端 pytest 测试
-├── static/                   # Vite 构建产物（由 Flask 托管）
+├── backend/                  # Python 后端
+│   ├── app.py                # 入口：CLI 参数，启动 Flask/gunicorn
+│   ├── server/               # Flask 无状态服务
+│   │   ├── app.py            # 路由与核心逻辑
+│   │   ├── config.py         # 环境变量配置
+│   │   ├── session_store.py  # 内存会话管理
+│   │   ├── storage.py        # 临时文件存储（按会话隔离）
+│   │   ├── download_tickets.py # 一次性下载令牌
+│   │   └── rate_limit.py     # 内存限流器
+│   ├── exporter/             # 悠悠有品 API 客户端
+│   │   ├── client.py         # 认证 + 订单抓取（含 uk 设备校验）
+│   │   └── bill_exporter.py  # 全量分页抓取 + CSV 导出
+│   ├── tests/                # 后端 pytest 测试
+│   ├── pyproject.toml
+│   └── uv.lock
+├── frontend/                 # React 前端
+│   ├── src/
+│   │   ├── pages/            # Dashboard、ProfitAnalysis、Trend、CS2Analysis、TradeDetail、Login
+│   │   ├── components/       # 图表、表格、上传面板、认证、布局组件
+│   │   ├── hooks/            # React hooks
+│   │   ├── utils/            # CSV 解析、FIFO 匹配、CS2 分析器
+│   │   └── types/            # TypeScript 类型定义
+│   ├── public/               # 字体等静态资源
+│   ├── package.json
+│   └── vite.config.ts
+├── static/                   # Vite 构建产物（由 Flask 托管，git 忽略）
 ├── docs/                     # 文档
 ├── .github/workflows/        # CI：测试 + 构建 + 推送 ghcr.io
 ├── .env.example              # 环境变量模板
-├── Dockerfile
-├── pyproject.toml
-└── vite.config.ts
+└── Dockerfile                # 多阶段构建：node build → python runtime
 ```
 
 ## 架构设计
