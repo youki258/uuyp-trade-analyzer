@@ -37,10 +37,12 @@
 
 ```bash
 # 1. 构建前端（产物输出到 static/）
+cd frontend
 npm install
 npm run build
 
 # 2. 安装后端依赖
+cd ../backend
 uv sync
 
 # 3. 启动服务
@@ -51,10 +53,11 @@ uv run python app.py
 CLI 参数：
 
 ```bash
+cd backend
 python app.py --port 8080 --host 127.0.0.1
 ```
 
-> Flask 直接托管 `static/` 下的前端构建产物。如果跳过第 1 步，界面将缺失或为旧版本。前端开发流程（vite dev、lint 等）见 [docs/development.md](docs/development.md)。
+> Flask 直接托管项目根目录 `static/` 下的前端构建产物。如果跳过第 1 步，界面将缺失或为旧版本。前端开发流程（vite dev、lint 等）见 [docs/development.md](docs/development.md)。
 
 ## Docker 部署
 
