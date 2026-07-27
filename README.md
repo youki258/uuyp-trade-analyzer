@@ -3,10 +3,18 @@
 <h1>UUYP Trade Analyzer（悠悠有品交易分析器）</h1>
 <p><strong>导出并分析你的悠悠有品 CS2 饰品交易记录 — 无需安装，打开即用。</strong></p>
 
-[![Stars](https://img.shields.io/github/stars/youki258/uuyp-trade-analyzer?style=flat-square&labelColor=0D1117&color=7B61FF)](https://github.com/youki258/uuyp-trade-analyzer/stargazers)
-[![License](https://img.shields.io/github/license/youki258/uuyp-trade-analyzer?style=flat-square&labelColor=0D1117&color=7B61FF)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.11+-0D1117?style=flat-square&labelColor=0D1117&color=7B61FF)](https://www.python.org/)
-[![CI](https://img.shields.io/github/actions/workflow/status/youki258/uuyp-trade-analyzer/deploy.yml?style=flat-square&labelColor=0D1117&color=7B61FF)](https://github.com/youki258/uuyp-trade-analyzer/actions)
+<img src="https://img.shields.io/github/stars/youki258/uuyp-trade-analyzer?style=flat" alt="Stars">
+<img src="https://img.shields.io/github/license/youki258/uuyp-trade-analyzer?style=flat" alt="License">
+<img src="https://img.shields.io/github/actions/workflow/status/youki258/uuyp-trade-analyzer/deploy.yml?style=flat" alt="CI">
+<img src="https://img.shields.io/github/last-commit/youki258/uuyp-trade-analyzer?style=flat" alt="Last Commit">
+
+<img src="https://img.shields.io/badge/Python-3.11+-blue?style=flat" alt="Python">
+<img src="https://img.shields.io/badge/Flask-3-000?style=flat&logo=flask&logoColor=white" alt="Flask">
+<img src="https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=white" alt="React">
+<img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript">
+<img src="https://img.shields.io/badge/Vite-5-646CFF?style=flat&logo=vite&logoColor=white" alt="Vite">
+<img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white" alt="Tailwind CSS">
+<img src="https://img.shields.io/badge/Recharts-22B5BF?style=flat" alt="Recharts">
 
 [English](README_EN.md) · [中文](README.md)
 
