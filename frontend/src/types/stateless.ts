@@ -16,6 +16,7 @@ export interface AuthInfo {
   nickname?: string;
   userId?: string;
   appType?: "app" | "web";
+  tokenMasked?: string;
 }
 
 export interface ApiResult {
@@ -31,6 +32,22 @@ export interface FetchStartResult extends ApiResult {
     lease: number;
   };
   files?: ServerFile[];
+}
+
+export interface FetchProgress {
+  status: "idle" | "running" | "done" | "error";
+  stage?: string;
+  stageName?: string;
+  page?: number;
+  count?: number;
+  message?: string;
+  summary?: {
+    sell: number;
+    buy: number;
+    lease: number;
+  };
+  files?: ServerFile[];
+  updatedAt?: number;
 }
 
 export interface DownloadTicketResult extends ApiResult {

@@ -50,7 +50,7 @@ export function ServerFilesPanel({
 
       <div className="space-y-4 p-5">
         <p className="text-sm leading-relaxed text-muted-foreground">
-          自动加载时优先读取合并账单，避免把合并账单和拆分账单一起算两遍。下面的下载区仍保留所有原始文件。
+          系统优先加载合并账单。如需查看原始拆分文件，可在下方下载。
         </p>
 
         <Button

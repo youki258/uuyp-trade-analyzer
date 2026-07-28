@@ -9,7 +9,7 @@ RUN npm run build
 # Stage 2: Python 运行时
 FROM python:3.11-slim
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /uvx /bin/
 
 WORKDIR /app
 

@@ -59,7 +59,7 @@ class SessionArtifactStore:
         return None
 
     def remove_session(self, session_id: str | None) -> None:
-        if not self._is_valid_session_id(session_id):
+        if not session_id or not self._is_valid_session_id(session_id):
             return
         path = self._safe_session_path(session_id)
         if not path:

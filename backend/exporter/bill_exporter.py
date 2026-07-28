@@ -4,12 +4,16 @@
 """
 
 import json
+import logging
 import csv
 import os
 import time
+import requests
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 from .client import UUYPClient
+
+logger = logging.getLogger(__name__)
 
 
 class BillExporter:
@@ -29,7 +33,17 @@ class BillExporter:
         """
         self.client = client
         self.output_dir = output_dir
+        self._progress_callback: Optional[Callable[[str, int, int], None]] = None
         os.makedirs(output_dir, exist_ok=True)
+
+    def _report_progress(self, stage: str, page: int, count: int) -> None:
+        """向外部回调报告抓取进度（stage/当前页或序号/累计条数），回调异常不影响抓取"""
+        if self._progress_callback is None:
+            return
+        try:
+            self._progress_callback(stage, page, count)
+        except Exception:
+            pass
 
     def _safe_api_call(self, func, *args, **kwargs) -> Optional[Dict]:
         """带重试的安全 API 调用"""
@@ -39,15 +53,15 @@ class BillExporter:
                 # 检查风控错误
                 code = result.get("Code") or result.get("code")
                 if code == 84101:
-                    print("[FAIL] 登录已失效，请重新获取 Token")
+                    logger.warning("[FAIL] 登录已失效，请重新获取 Token")
                     return None
                 if code == 84104:
-                    print("[FAIL] 触发风控，暂时无法获取数据，等待后重试...")
+                    logger.warning("[FAIL] 触发风控，暂时无法获取数据，等待后重试...")
                     time.sleep(30)
                     continue
                 return result
-            except Exception as e:
-                print(f"[!] 请求失败 (尝试 {attempt + 1}/{self.MAX_RETRIES}): {e}")
+            except (requests.RequestException, ValueError, KeyError) as e:
+                logger.warning(f"[!] 请求失败 (尝试 {attempt + 1}/{self.MAX_RETRIES}): {e}")
                 if attempt < self.MAX_RETRIES - 1:
                     time.sleep(5 * (attempt + 1))
         return None
@@ -61,12 +75,12 @@ class BillExporter:
         all_orders = []
         page = 1
 
-        print(f"\n{'='*60}")
-        print(f"开始抓取卖出订单 (状态: {order_status})")
-        print(f"{'='*60}")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"开始抓取卖出订单 (状态: {order_status})")
+        logger.info(f"{'='*60}")
 
         while True:
-            print(f"\n[>] 正在抓取卖出订单第 {page} 页...")
+            logger.info(f"\n[>] 正在抓取卖出订单第 {page} 页...")
             result = self._safe_api_call(
                 self.client.get_sell_orders,
                 page=page,
@@ -75,25 +89,26 @@ class BillExporter:
             )
 
             if result is None:
-                print("[FAIL] 获取卖出订单失败，停止抓取")
+                logger.warning("[FAIL] 获取卖出订单失败，停止抓取")
                 break
 
             # 兼容两种响应格式
             code = result.get("Code") or result.get("code")
             if code != 0:
-                print(f"[FAIL] API 返回错误: code={code}, msg={result.get('Msg') or result.get('msg')}")
+                logger.warning(f"[FAIL] API 返回错误: code={code}, msg={result.get('Msg') or result.get('msg')}")
                 break
 
             order_list = result.get("Data", {}).get("orderList") or result.get("data", {}).get("orderList", [])
             if not order_list:
-                print(f"[OK] 第 {page} 页无数据，卖出订单抓取完成")
+                logger.info(f"[OK] 第 {page} 页无数据，卖出订单抓取完成")
                 break
 
             all_orders.extend(order_list)
-            print(f"[OK] 第 {page} 页获取 {len(order_list)} 条记录，累计 {len(all_orders)} 条")
+            logger.info(f"[OK] 第 {page} 页获取 {len(order_list)} 条记录，累计 {len(all_orders)} 条")
+            self._report_progress("sell", page, len(all_orders))
 
             if len(order_list) < self.PAGE_SIZE:
-                print(f"[OK] 已到最后一页，卖出订单抓取完成")
+                logger.info("[OK] 已到最后一页，卖出订单抓取完成")
                 break
 
             page += 1
@@ -110,12 +125,12 @@ class BillExporter:
         all_orders = []
         page = 1
 
-        print(f"\n{'='*60}")
-        print(f"开始抓取买入订单 (状态: {order_status})")
-        print(f"{'='*60}")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"开始抓取买入订单 (状态: {order_status})")
+        logger.info(f"{'='*60}")
 
         while True:
-            print(f"\n[>] 正在抓取买入订单第 {page} 页...")
+            logger.info(f"\n[>] 正在抓取买入订单第 {page} 页...")
             result = self._safe_api_call(
                 self.client.get_buy_orders,
                 page=page,
@@ -124,24 +139,25 @@ class BillExporter:
             )
 
             if result is None:
-                print("[FAIL] 获取买入订单失败，停止抓取")
+                logger.warning("[FAIL] 获取买入订单失败，停止抓取")
                 break
 
             code = result.get("Code") or result.get("code")
             if code != 0:
-                print(f"[FAIL] API 返回错误: code={code}")
+                logger.warning(f"[FAIL] API 返回错误: code={code}")
                 break
 
             order_list = result.get("Data", {}).get("orderList") or result.get("data", {}).get("orderList", [])
             if not order_list:
-                print(f"[OK] 第 {page} 页无数据，买入订单抓取完成")
+                logger.info(f"[OK] 第 {page} 页无数据，买入订单抓取完成")
                 break
 
             all_orders.extend(order_list)
-            print(f"[OK] 第 {page} 页获取 {len(order_list)} 条记录，累计 {len(all_orders)} 条")
+            logger.info(f"[OK] 第 {page} 页获取 {len(order_list)} 条记录，累计 {len(all_orders)} 条")
+            self._report_progress("buy", page, len(all_orders))
 
             if len(order_list) < self.PAGE_SIZE:
-                print(f"[OK] 已到最后一页，买入订单抓取完成")
+                logger.info("[OK] 已到最后一页，买入订单抓取完成")
                 break
 
             page += 1
@@ -149,7 +165,7 @@ class BillExporter:
 
         return all_orders
 
-    def fetch_all_lease_orders(self, lease_in_api_path: str = None) -> List[Dict]:
+    def fetch_all_lease_orders(self, lease_in_api_path: Optional[str] = None) -> List[Dict]:
         """
         抓取全部租赁订单（租出 + 租入）
         
@@ -172,39 +188,39 @@ class BillExporter:
         all_orders.extend(in_orders)
 
         if not in_orders:
-            print(f"\n{'='*60}")
-            print("[!] 未获取到租入订单数据")
-            print("[!] 租入订单接口在 Steamauto、cs2-trade-manager 等开源项目中均未实现")
-            print("[!] 如需获取租入数据，请按以下步骤抓包确认接口路径：")
-            print("    1. 安装 Fiddler/Charles/mitmproxy 等抓包工具")
-            print("    2. 手机配置代理，安装并信任抓包工具的 CA 证书")
-            print("    3. 打开悠悠有品 APP -> 我的 -> 我的服务 -> 我的账单")
-            print("    4. 切换到「租赁」标签页，选择「租入」筛选")
-            print("    5. 在抓包工具中找到对应的 API 请求")
-            print("    6. 记录完整的请求 URL 路径和参数格式")
-            print("    7. 重新运行工具，使用 --lease-in-path 参数传入路径")
-            print(f"{'='*60}")
+            logger.info(f"\n{'='*60}")
+            logger.warning("[!] 未获取到租入订单数据")
+            logger.warning("[!] 租入订单接口在 Steamauto、cs2-trade-manager 等开源项目中均未实现")
+            logger.warning("[!] 如需获取租入数据，请按以下步骤抓包确认接口路径：")
+            logger.info("    1. 安装 Fiddler/Charles/mitmproxy 等抓包工具")
+            logger.info("    2. 手机配置代理，安装并信任抓包工具的 CA 证书")
+            logger.info("    3. 打开悠悠有品 APP -> 我的 -> 我的服务 -> 我的账单")
+            logger.info("    4. 切换到「租赁」标签页，选择「租入」筛选")
+            logger.info("    5. 在抓包工具中找到对应的 API 请求")
+            logger.info("    6. 记录完整的请求 URL 路径和参数格式")
+            logger.info("    7. 重新运行工具，使用 --lease-in-path 参数传入路径")
+            logger.info(f"{'='*60}")
 
         return all_orders
 
     def _fetch_lease_page_list(self, lease_type: str = "lease_out",
-                                api_path: str = None) -> List[Dict]:
+                                api_path: Optional[str] = None) -> List[Dict]:
         """
         分页抓取租出/租入订单
         :param lease_type: "lease_out" 或 "lease_in"
         :param api_path: 自定义 API 路径（租入接口用）
         """
-        all_orders = []
+        all_orders: List[Dict] = []
         page = 1
         type_name = "租出" if lease_type == "lease_out" else "租入"
         page_size = 50  # 与 Steamauto 保持一致
 
-        print(f"\n{'='*60}")
-        print(f"开始抓取{type_name}订单")
-        print(f"{'='*60}")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"开始抓取{type_name}订单")
+        logger.info(f"{'='*60}")
 
         while True:
-            print(f"\n[>] 正在抓取{type_name}订单第 {page} 页...")
+            logger.info(f"\n[>] 正在抓取{type_name}订单第 {page} 页...")
             if lease_type == "lease_out":
                 result = self._safe_api_call(
                     self.client.get_lease_out_orders,
@@ -220,17 +236,17 @@ class BillExporter:
                 )
 
             if result is None:
-                print(f"[FAIL] 获取{type_name}订单失败，停止抓取")
+                logger.warning(f"[FAIL] 获取{type_name}订单失败，停止抓取")
                 break
 
             # 兼容大小写 Code/code
             code = result.get("Code") or result.get("code")
             if code is not None and code != 0:
                 msg = result.get("Msg") or result.get("msg") or ""
-                print(f"[!] {type_name}订单 API 返回: code={code}, msg={msg}")
+                logger.warning(f"[!] {type_name}订单 API 返回: code={code}, msg={msg}")
                 if lease_type == "lease_in" and code != 0:
-                    print(f"[!] 租入订单接口路径可能不正确，跳过")
-                    print(f"[!] 请通过 APP 抓包确认实际路径，参考上方指引")
+                    logger.warning("[!] 租入订单接口路径可能不正确，跳过")
+                    logger.warning("[!] 请通过 APP 抓包确认实际路径，参考上方指引")
                 break
 
             # 提取订单列表（兼容 Data/data 两种格式）
@@ -242,7 +258,7 @@ class BillExporter:
             )
             if not order_data:
                 total = (result.get("Data") or result.get("data") or {}).get("totalCount", "?")
-                print(f"[OK] 第 {page} 页无数据，{type_name}订单抓取完成 (totalCount={total})")
+                logger.info(f"[OK] 第 {page} 页无数据，{type_name}订单抓取完成 (totalCount={total})")
                 break
 
             # 标记订单来源
@@ -250,10 +266,11 @@ class BillExporter:
                 order["_lease_type"] = type_name
 
             all_orders.extend(order_data)
-            print(f"[OK] 第 {page} 页获取 {len(order_data)} 条{type_name}记录，累计 {len(all_orders)} 条")
+            logger.info(f"[OK] 第 {page} 页获取 {len(order_data)} 条{type_name}记录，累计 {len(all_orders)} 条")
+            self._report_progress("lease", page, len(all_orders))
 
             if len(order_data) < page_size:
-                print(f"[OK] 已到最后一页，{type_name}订单抓取完成")
+                logger.info(f"[OK] 已到最后一页，{type_name}订单抓取完成")
                 break
 
             page += 1
@@ -270,15 +287,15 @@ class BillExporter:
         detailed_orders = []
         total = len(order_list)
 
-        print(f"\n[>] 开始获取 {total} 个订单的详情...")
+        logger.info(f"\n[>] 开始获取 {total} 个订单的详情...")
 
         for i, order in enumerate(order_list):
-            order_no = order.get("orderNo") or order.get("orderId") or order.get("orderNo", "")
+            order_no = order.get("orderNo") or order.get("orderId") or ""
             if not order_no:
                 detailed_orders.append(order)
                 continue
 
-            print(f"  [{i+1}/{total}] 获取订单 {order_no} 详情...")
+            logger.info(f"  [{i+1}/{total}] 获取订单 {order_no} 详情...")
             detail = self._safe_api_call(self.client.get_order_detail, order_no)
 
             if detail:
@@ -286,20 +303,24 @@ class BillExporter:
                 order["_detail"] = detail_data
 
             detailed_orders.append(order)
+            self._report_progress("detail", i + 1, total)
             time.sleep(self.DETAIL_INTERVAL)
 
         return detailed_orders
 
     def fetch_all_data(self, fetch_detail: bool = False,
                        include_lease: bool = True,
-                       lease_in_api_path: str = None) -> Dict[str, List[Dict]]:
+                       lease_in_api_path: Optional[str] = None,
+                       progress_callback: Optional[Callable[[str, int, int], None]] = None) -> Dict[str, List[Dict]]:
         """
         抓取全部交易数据
         :param fetch_detail: 是否获取订单详情（耗时更长）
         :param include_lease: 是否包含租赁订单
         :param lease_in_api_path: 租入订单的自定义 API 路径（如已通过抓包确认）
+        :param progress_callback: 可选进度回调 (stage, page, count)，在各分页循环处触发
         :return: {"sell": [...], "buy": [...], "lease": [...]}
         """
+        self._progress_callback = progress_callback
         data = {}
 
         # 抓取卖出订单
@@ -325,7 +346,7 @@ class BillExporter:
 
     # ==================== 数据导出 ====================
 
-    def export_json(self, data: Dict[str, List[Dict]], filename: str = None) -> str:
+    def export_json(self, data: Dict[str, List[Dict]], filename: Optional[str] = None) -> str:
         """
         导出为 JSON 文件
         :param data: 抓取的数据
@@ -340,8 +361,6 @@ class BillExporter:
 
         export_data = {
             "export_time": datetime.now().isoformat(),
-            "user_nickname": self.client.nickname,
-            "user_id": self.client.user_id,
             "summary": {
                 "sell_count": len(data.get("sell", [])),
                 "buy_count": len(data.get("buy", [])),
@@ -353,7 +372,7 @@ class BillExporter:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(export_data, f, ensure_ascii=False, indent=2)
 
-        print(f"\n[OK] JSON 文件已保存: {filepath}")
+        logger.info(f"\n[OK] JSON 文件已保存: {filepath}")
         return filepath
 
     @staticmethod
@@ -373,7 +392,7 @@ class BillExporter:
         """从订单中按优先级提取字段值"""
         for key in keys:
             val = order.get(key)
-            if val is not None and val != "" and val != 0:
+            if val is not None and val != "":
                 return val
         return ""
 
@@ -398,7 +417,7 @@ class BillExporter:
                 continue
         return 1
 
-    def export_csv(self, data: Dict[str, List[Dict]], filename: str = None) -> str:
+    def export_csv(self, data: Dict[str, List[Dict]], filename: Optional[str] = None) -> str:
         """
         导出为 CSV 文件（所有订单合并）
         :param data: 抓取的数据
@@ -415,7 +434,7 @@ class BillExporter:
         headers = [
             "订单类型", "订单号", "商品名称", "商品模板ID",
             "订单状态", "成交数量", "成交价格(分)", "成交时间",
-            "买家昵称", "卖家昵称", "Steam报价ID",
+            "Steam报价ID",
         ]
 
         rows = []
@@ -443,8 +462,6 @@ class BillExporter:
                     "成交数量": self._extract_quantity(order, product_detail),
                     "成交价格(分)": price,
                     "成交时间": self._format_timestamp(raw_time),
-                    "买家昵称": order.get("buyerUserName") or order.get("buyerNickName") or "",
-                    "卖家昵称": order.get("sellerUserName") or order.get("sellerNickName") or "",
                     "Steam报价ID": trade_offer_id,
                 })
 
@@ -453,8 +470,8 @@ class BillExporter:
             writer.writeheader()
             writer.writerows(rows)
 
-        print(f"[OK] CSV 文件已保存: {filepath}")
-        print(f"    卖出: {len(data.get('sell', []))} 条, 买入: {len(data.get('buy', []))} 条, 租赁: {len(data.get('lease', []))} 条")
+        logger.info(f"[OK] CSV 文件已保存: {filepath}")
+        logger.info(f"    卖出: {len(data.get('sell', []))} 条, 买入: {len(data.get('buy', []))} 条, 租赁: {len(data.get('lease', []))} 条")
         return filepath
 
     def export_excel_ready_csv(self, data: Dict[str, List[Dict]]) -> List[str]:
@@ -528,6 +545,6 @@ class BillExporter:
                 writer.writerows(rows)
 
             files.append(filepath)
-            print(f"[OK] {type_name}订单 CSV 已保存: {filepath} ({len(rows)} 条)")
+            logger.info(f"[OK] {type_name}订单 CSV 已保存: {filepath} ({len(rows)} 条)")
 
         return files

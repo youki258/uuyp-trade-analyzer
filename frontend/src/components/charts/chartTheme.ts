@@ -7,8 +7,8 @@ export const CHART = {
   buy: "#60A5FA",
   sell: "#FB923C",
   primary: "hsl(40, 92%, 55%)",
-  /** 中国惯例：盈红 */
-  profit: "#EF4444",
-  /** 中国惯例：亏绿 */
-  loss: "#10B981",
+  /** 中国惯例：盈红（降饱和） */
+  profit: "#E05555",
+  /** 中国惯例：亏绿（降饱和） */
+  loss: "#2BA878",
 } as const;

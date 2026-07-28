@@ -33,6 +33,7 @@ token.txt
 .workbuddy/
 .ai-review/
 .opencode/
+.qoder/
 
 # Test cache
 .pytest_cache/

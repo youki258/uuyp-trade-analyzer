@@ -6,6 +6,8 @@ export interface ParseResult {
   totalCount: number;
   buyCount: number;
   sellCount: number;
+  /** 因无效成交时间而跳过的行数，供 UI 提示 */
+  skippedCount: number;
   dateRange: { start: Date | null; end: Date | null };
 }
 
@@ -98,9 +100,10 @@ async function readFileWithEncodingDetection(file: File): Promise<string> {
     try {
       const gbkDecoder = new TextDecoder("gbk", { fatal: false });
       text = gbkDecoder.decode(buffer);
-      console.log("[UUYP] Detected GBK encoding, re-decoded with GBK");
     } catch {
-      console.warn("[UUYP] GBK decode failed, using UTF-8 result");
+      if (import.meta.env.DEV) {
+        console.warn("[UUYP] GBK decode failed, using UTF-8 result");
+      }
     }
   }
 
@@ -126,6 +129,7 @@ export function parseCsvFile(
           const isBuyFile = mode === "buy";
           const isSellFile = mode === "sell";
           const records: TradeRecord[] = [];
+          let skippedCount = 0;
           const headers = Object.keys(rows[0]).map(stripBom);
 
           // 检测方向字段：优先"订单类型"，其次"交易方向"
@@ -163,6 +167,12 @@ export function parseCsvFile(
             // 跳过空行或无关键信息的行
             if (!id && !commodityName && !priceStr) return;
 
+            // 无效成交时间：跳过该行并计数，避免伪造当前时间污染趋势统计
+            if (isNaN(tradeTime.getTime())) {
+              skippedCount++;
+              return;
+            }
+
             const safeBaseId = id || `${commodityName || "unknown"}-${timeStr || rowIndex}`;
             unitPriceFenList.forEach((unitPriceFen, unitIndex) => {
               records.push({
@@ -174,7 +184,7 @@ export function parseCsvFile(
                 status,
                 priceFen: unitPriceFen,
                 priceYuan: unitPriceFen / 100,
-                tradeTime: isNaN(tradeTime.getTime()) ? new Date() : tradeTime,
+                tradeTime,
                 tradeTimeStr: timeStr,
                 buyerNickname,
                 sellerNickname,
@@ -182,8 +192,6 @@ export function parseCsvFile(
               });
             });
           });
-
-          console.log(`[UUYP] Parsed ${records.length} records from ${file.name}`);
 
           const buyCount = records.filter((r) => r.type === "buy").length;
           const sellCount = records.filter((r) => r.type === "sell").length;
@@ -197,6 +205,7 @@ export function parseCsvFile(
             totalCount: records.length,
             buyCount,
             sellCount,
+            skippedCount,
             dateRange: {
               start: dates[0] || null,
               end: dates[dates.length - 1] || null,

@@ -1,5 +1,8 @@
+import logging
+import os
 import time
 import re
+import threading
 import uuid
 import json
 from pathlib import Path
@@ -13,6 +16,9 @@ from .download_tickets import OneTimeDownloadTicketStore
 from .rate_limit import InMemoryRateLimiter, RateLimitRule
 from .session_store import InMemorySessionStore
 from .storage import SessionArtifactStore
+
+logger = logging.getLogger(__name__)
+audit_logger = logging.getLogger("uuyp.audit")
 
 
 def _normalize_code(payload: dict) -> int:
@@ -105,7 +111,7 @@ def _mask_value(value: str) -> str:
 
 def _sanitize_log_fields(fields: dict) -> dict:
     redacted_keys = {"token", "password", "phone", "sessionId", "ticket"}
-    sanitized = {}
+    sanitized: dict = {}
     for key, value in fields.items():
         if value is None:
             sanitized[key] = None
@@ -119,7 +125,7 @@ def _sanitize_log_fields(fields: dict) -> dict:
 
 def _audit(event: str, **fields) -> None:
     payload = {"event": event, **_sanitize_log_fields(fields)}
-    print(f"[audit] {json.dumps(payload, ensure_ascii=False)}")
+    audit_logger.info("[audit] %s", json.dumps(payload, ensure_ascii=False))
 
 
 def create_stateless_app(dist_dir: Path) -> Flask:
@@ -128,13 +134,19 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     当前阶段仅提供静态页面和状态接口，后续步骤会逐步加入会话、上传、抓取和下载链路。
     """
     app = Flask(__name__, static_folder=None)
+    # 按 LOG_LEVEL 环境变量初始化日志（默认 INFO）
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     # 信任 Caddy 反向代理设置的 X-Forwarded-* 头。
     # 这会让 request.scheme 变为 https、request.host 变为 youki.me，
     # 从而 _check_same_origin 比较时 Origin (https://youki.me) 与 host_url 一致；
     # 否则 Caddy→Flask 是 http 直连，Flask 看到的 scheme/host 是反代后的内部值，
     # 同源校验会 403。
     # x_for/x_proto/x_host/x_prefix 都设为 1：只信任 1 层代理（Caddy 在公网只过一道）。
-    app.wsgi_app = ProxyFix(
+    app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
         app.wsgi_app,
         x_for=1,
         x_proto=1,
@@ -318,7 +330,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
             client = UUYPClient(token=token, app_type=app_type)
         except Exception:
-            print("[auth] token verify failed")
+            logger.exception("[auth] token verify failed")
             return jsonify({"status": "error", "message": "token invalid"}), 400
 
         g.session_record.data["auth"] = {
@@ -376,7 +388,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
             result, device_info, headers = UUYPClient.send_sms_code(phone, region_code)
         except Exception:
-            print("[auth] send sms failed")
+            logger.exception("[auth] send sms failed")
             return jsonify({"status": "error", "message": "send sms failed"}), 500
 
         code = _normalize_code(result)
@@ -407,7 +419,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 sms_up_number = str(config_data.get("SmsUpNumber", "")).strip()
                 _audit("auth.sms.up_config", sessionId=g.session_id, ok=bool(sms_up_content and sms_up_number))
             except Exception:
-                print("[auth] fetch sms-up config failed")
+                logger.exception("[auth] fetch sms-up config failed")
 
         _audit("auth.sms.send", sessionId=g.session_id, phone=phone, code=code)
 
@@ -463,7 +475,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 sms_ctx.get("headers", {}),
             )
         except Exception:
-            print("[auth] sms verify failed")
+            logger.exception("[auth] sms verify failed")
             return jsonify({"status": "error", "message": "sms login failed"}), 500
 
         code = _normalize_code(result)
@@ -535,7 +547,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
             result = UUYPClient.pwd_sign_in(username, password)
         except Exception:
-            print("[auth] password sign in failed")
+            logger.exception("[auth] password sign in failed")
             return jsonify({"status": "error", "message": "password login failed"}), 500
 
         code = _normalize_code(result)
@@ -581,20 +593,133 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         auth = g.session_record.data.get("auth")
         if not auth:
             return jsonify({"authenticated": False})
+        token = str(auth.get("token", ""))
+        token_masked = f"{token[:6]}***{token[-4:]}" if len(token) > 12 else "***"
         return jsonify(
             {
                 "authenticated": True,
                 "nickname": auth.get("nickname", ""),
                 "userId": auth.get("userId", ""),
                 "appType": auth.get("appType", "app"),
+                "tokenMasked": token_masked,
             }
         )
+
+    @app.route("/api/auth/token", methods=["GET"])
+    def auth_token_reveal():
+        """返回明文 Token（仅供用户点击复制时调用一次），严格限流 + 同源检查"""
+        limited = _check_rate_limit_both(
+            "auth_token_reveal",
+            RateLimitRule(max_requests=10, window_seconds=60),
+            RateLimitRule(max_requests=5, window_seconds=60),
+        )
+        if limited:
+            return limited
+
+        ok, reason = _check_same_origin()
+        if not ok:
+            return jsonify({"status": "error", "message": reason}), 403
+
+        auth, err = _require_auth()
+        if err:
+            return err
+        _audit("auth.token.reveal", sessionId=g.session_id)
+        return jsonify({"status": "ok", "token": str(auth.get("token", ""))})
 
     def _require_auth() -> tuple[dict | None, tuple | None]:
         auth = g.session_record.data.get("auth")
         if not auth or not str(auth.get("token", "")).strip():
             return None, (jsonify({"status": "error", "message": "not authenticated"}), 401)
         return auth, None
+
+    def _progress_path(session_id: str) -> Path:
+        return Path(artifacts.session_dir(session_id)) / "progress.json"
+
+    def _write_progress(session_id: str, payload: dict) -> None:
+        """原子写入进度文件（先写临时文件再替换，兼容多 worker 并发读）"""
+        payload = {**payload, "updatedAt": time.time()}
+        path = _progress_path(session_id)
+        tmp = path.with_suffix(".json.tmp")
+        try:
+            tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
+        except OSError:
+            pass
+
+    def _read_progress(session_id: str) -> dict | None:
+        path = _progress_path(session_id)
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _run_fetch_pipeline(
+        session_id: str,
+        token: str,
+        app_type: str,
+        fetch_detail: bool,
+        include_lease: bool,
+        export_split: bool,
+        lease_in_path: str | None,
+    ) -> None:
+        """后台线程执行导出管线，阶段性进度写入 progress.json"""
+        stage_names = {"sell": "卖出订单", "buy": "买入订单", "lease": "租赁订单", "detail": "订单详情"}
+
+        def on_progress(stage: str, page: int, count: int) -> None:
+            _write_progress(
+                session_id,
+                {
+                    "status": "running",
+                    "stage": stage,
+                    "stageName": stage_names.get(stage, stage),
+                    "page": page,
+                    "count": count,
+                },
+            )
+
+        try:
+            from exporter.client import UUYPClient
+            from exporter.bill_exporter import BillExporter
+
+            client = UUYPClient(token=token, app_type=app_type)
+            output_dir = artifacts.session_dir(session_id)
+            exporter = BillExporter(client, output_dir=str(output_dir))
+
+            data = exporter.fetch_all_data(
+                fetch_detail=fetch_detail,
+                include_lease=include_lease,
+                lease_in_api_path=lease_in_path,
+                progress_callback=on_progress,
+            )
+            _write_progress(session_id, {"status": "running", "stage": "export", "stageName": "导出文件"})
+            exporter.export_csv(data)
+            if export_split:
+                exporter.export_excel_ready_csv(data)
+        except Exception:
+            logger.exception("[fetch] export pipeline failed")
+            _write_progress(session_id, {"status": "error", "message": "抓取失败，请重试"})
+            return
+
+        files = artifacts.list_csv_files(session_id)
+        summary = {
+            "sell": len(data.get("sell", [])),
+            "buy": len(data.get("buy", [])),
+            "lease": len(data.get("lease", [])),
+        }
+        _audit(
+            "fetch.completed",
+            sessionId=session_id,
+            sell=summary["sell"],
+            buy=summary["buy"],
+            lease=summary["lease"],
+            fileCount=len(files),
+        )
+        _write_progress(
+            session_id,
+            {"status": "done", "stage": "done", "stageName": "完成", "summary": summary, "fileCount": len(files)},
+        )
 
     @app.route("/api/fetch/start", methods=["POST"])
     def fetch_start():
@@ -627,46 +752,52 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         token = str(auth.get("token", "")).strip()
         app_type = str(auth.get("appType", "app") or "app")
 
-        try:
-            from exporter.client import UUYPClient
-            from exporter.bill_exporter import BillExporter
+        # 同一会话已有运行中的抓取任务时拒绝重复启动（10 分钟无心跳视为失效）
+        existing = _read_progress(g.session_id)
+        if (
+            existing
+            and existing.get("status") == "running"
+            and time.time() - float(existing.get("updatedAt", 0)) < 600
+        ):
+            return jsonify({"status": "error", "message": "抓取任务正在进行中"}), 409
 
-            client = UUYPClient(token=token, app_type=app_type)
-            output_dir = artifacts.session_dir(g.session_id)
-            exporter = BillExporter(client, output_dir=str(output_dir))
-
-            data = exporter.fetch_all_data(
-                fetch_detail=fetch_detail,
-                include_lease=include_lease,
-                lease_in_api_path=lease_in_path,
-            )
-            exporter.export_csv(data)
-            if export_split:
-                exporter.export_excel_ready_csv(data)
-        except Exception:
-            print("[fetch] export pipeline failed")
-            return jsonify({"status": "error", "message": "fetch failed"}), 500
-
-        files = artifacts.list_csv_files(g.session_id)
-        _audit(
-            "fetch.completed",
-            sessionId=g.session_id,
-            sell=len(data.get("sell", [])),
-            buy=len(data.get("buy", [])),
-            lease=len(data.get("lease", [])),
-            fileCount=len(files),
+        _write_progress(
+            g.session_id,
+            {"status": "running", "stage": "init", "stageName": "准备中", "page": 0, "count": 0},
         )
-        return jsonify(
-            {
-                "status": "ok",
-                "summary": {
-                    "sell": len(data.get("sell", [])),
-                    "buy": len(data.get("buy", [])),
-                    "lease": len(data.get("lease", [])),
-                },
-                "files": files,
-            }
+        worker = threading.Thread(
+            target=_run_fetch_pipeline,
+            args=(
+                g.session_id,
+                token,
+                app_type,
+                fetch_detail,
+                include_lease,
+                export_split,
+                lease_in_path,
+            ),
+            daemon=True,
         )
+        worker.start()
+        _audit("fetch.started", sessionId=g.session_id)
+        return jsonify({"status": "started"}), 202
+
+    @app.route("/api/fetch/progress")
+    def fetch_progress():
+        auth, err = _require_auth()
+        if err:
+            return err
+        limited = _check_rate_limit(
+            "fetch_progress", RateLimitRule(max_requests=120, window_seconds=60)
+        )
+        if limited:
+            return limited
+        progress = _read_progress(g.session_id)
+        if not progress:
+            return jsonify({"status": "idle"})
+        if progress.get("status") == "done":
+            progress = {**progress, "files": artifacts.list_csv_files(g.session_id)}
+        return jsonify(progress)
 
     @app.route("/api/files")
     def api_files():

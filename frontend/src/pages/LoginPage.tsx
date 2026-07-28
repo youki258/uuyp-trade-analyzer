@@ -279,7 +279,7 @@ export function LoginPage() {
             <Crosshair className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-semibold">
               <span className="text-primary">UUYP</span>{" "}
-              <span className="text-foreground/90">Bill Analyzer</span>
+              <span className="text-foreground/90">Trade Analyzer</span>
             </h1>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -295,6 +295,10 @@ export function LoginPage() {
           onFetchStart={() => {
             setWorkflowTone("loading");
             setWorkflowMessage("正在从悠悠有品抓取账单，请稍候...");
+          }}
+          onFetchProgress={(message) => {
+            setWorkflowTone("loading");
+            setWorkflowMessage(message);
           }}
           onFetchSuccess={handleFetchSuccess}
           onFetchError={(message) => {

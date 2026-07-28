@@ -44,16 +44,16 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // 中国惯例：盈红亏绿
+        // 中国惯例：盈红亏绿（降饱和，避免暗色背景上过于刺眼）
         profit: {
-          DEFAULT: "#EF4444",
-          light: "#F87171",
-          dark: "#DC2626",
+          DEFAULT: "#E05555",
+          light: "#E87070",
+          dark: "#C74747",
         },
         loss: {
-          DEFAULT: "#10B981",
-          light: "#34D399",
-          dark: "#059669",
+          DEFAULT: "#2BA878",
+          light: "#45BD8E",
+          dark: "#228A62",
         },
         cs2: {
           orange: "#DE9B35",

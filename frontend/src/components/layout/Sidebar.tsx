@@ -29,7 +29,7 @@ export function Sidebar() {
         <Crosshair className="w-6 h-6 text-primary shrink-0" />
         <span className="hidden lg:block font-semibold text-[15px]">
           <span className="text-primary">UUYP</span>{" "}
-          <span className="text-foreground/80">Analyzer</span>
+          <span className="text-foreground/80">Trade Analyzer</span>
         </span>
       </div>
 

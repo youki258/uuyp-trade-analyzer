@@ -42,6 +42,11 @@ export function AnalysisSummaryPanel({
             <p className="mt-1 text-lg font-semibold tnum">
               {formatNumber(parseResult.totalCount)}
             </p>
+            {parseResult.skippedCount > 0 && (
+              <p className="mt-0.5 text-xs text-amber-400">
+                已跳过 {formatNumber(parseResult.skippedCount)} 行无效时间记录
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-muted-foreground">买入笔数</p>

@@ -1,6 +1,7 @@
 import {
-  AreaChart,
-  Area,
+  ComposedChart,
+  Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -29,7 +30,7 @@ export function TimeSeriesChart({ data, height = 400 }: TimeSeriesChartProps) {
   return (
     <div className="panel p-4">
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barGap={2}>
           <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
           <XAxis
             dataKey="date"
@@ -47,34 +48,31 @@ export function TimeSeriesChart({ data, height = 400 }: TimeSeriesChartProps) {
             content={<ChartTooltip formatValue={(v) => `¥${v.toFixed(2)}`} />}
           />
           <Legend wrapperStyle={CHART.legend} />
-          <Area
-            type="monotone"
+          <Bar
             dataKey="buyAmount"
             name="买入额"
-            stroke={CHART.buy}
             fill={CHART.buy}
-            fillOpacity={0.08}
-            strokeWidth={2}
+            fillOpacity={0.85}
+            radius={[2, 2, 0, 0]}
+            maxBarSize={24}
           />
-          <Area
-            type="monotone"
+          <Bar
             dataKey="sellAmount"
             name="卖出额"
-            stroke={CHART.sell}
             fill={CHART.sell}
-            fillOpacity={0.08}
-            strokeWidth={2}
+            fillOpacity={0.85}
+            radius={[2, 2, 0, 0]}
+            maxBarSize={24}
           />
-          <Area
+          <Line
             type="monotone"
             dataKey="netAmount"
             name="净额"
             stroke={CHART.primary}
-            fill={CHART.primary}
-            fillOpacity={0.1}
             strokeWidth={2}
+            dot={false}
           />
-        </AreaChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );

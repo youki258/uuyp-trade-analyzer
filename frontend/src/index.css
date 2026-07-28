@@ -13,10 +13,10 @@
 @layer base {
   :root {
     /* 三级背景层级：页面底 / 面板 / 嵌入式（井） */
-    --background: 220 14% 5%;
-    --panel: 220 12% 7.5%;
-    --inset: 220 10% 10.5%;
-    --foreground: 220 12% 92%;
+    --background: 220 14% 8%;
+    --panel: 220 12% 12%;
+    --inset: 220 10% 15%;
+    --foreground: 220 12% 86%;
     --muted-foreground: 220 9% 58%;
 
     /* 琥珀金 primary */
@@ -38,8 +38,8 @@
 
     /* 两级描边：hairline（默认分隔）与可见边 */
     --hairline: 0 0% 100%;
-    --border: 220 9% 18%;
-    --input: 220 9% 18%;
+    --border: 220 9% 22%;
+    --input: 220 9% 22%;
     --ring: 40 92% 55%;
 
     --radius: 0.5rem;
@@ -73,7 +73,7 @@
 }
 
 .panel-hover {
-  @apply panel transition-colors duration-200 hover:bg-[hsl(220_12%_9%)] hover:border-white/[0.12];
+  @apply panel transition-colors duration-200 hover:bg-[hsl(220_12%_13.5%)] hover:border-white/[0.12];
 }
 
 /* 数字等宽（财务表格对齐） */

@@ -16,7 +16,7 @@ class StatelessConfig:
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
-def _to_bool(value: str, default: bool) -> bool:
+def _to_bool(value: str | None, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in TRUE_VALUES

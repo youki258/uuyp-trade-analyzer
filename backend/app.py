@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR.parent / "static"
 sys.path.insert(0, str(BASE_DIR))
 
-from server.app import create_stateless_app
+from server.app import create_stateless_app  # noqa: E402  需先修改 sys.path
 
 # 模块级 app 对象，供 gunicorn 导入
 app = create_stateless_app(STATIC_DIR)

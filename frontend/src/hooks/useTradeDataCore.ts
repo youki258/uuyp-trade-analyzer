@@ -54,9 +54,6 @@ function loadFromStorage(): TradeDataState | null {
         r.tradeTime = new Date(r.tradeTime);
       }
     }
-    console.log(
-      `[UUYP] Restored ${parsed.records?.length || 0} records from sessionStorage`,
-    );
     return parsed;
   } catch {
     return null;
@@ -68,7 +65,9 @@ function saveToStorage(state: TradeDataState): void {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
-    console.warn("[UUYP] Failed to save to sessionStorage:", e);
+    if (import.meta.env.DEV) {
+      console.warn("[UUYP] Failed to save to sessionStorage:", e);
+    }
   }
 }
 
@@ -116,14 +115,13 @@ export function useTradeDataCore() {
 
     try {
       const allRecords: TradeRecord[] = [];
+      let skippedTotal = 0;
 
       for (const file of files) {
         const mode = detectFileMode(file.name);
         const result = await parseCsvFile(file, mode);
-        console.log(
-          `[UUYP] Parsed ${file.name}: ${result.records.length} records`,
-        );
         allRecords.push(...result.records);
+        skippedTotal += result.skippedCount;
       }
 
       if (allRecords.length === 0) {
@@ -165,6 +163,7 @@ export function useTradeDataCore() {
           totalCount: normalizedRecords.length,
           buyCount,
           sellCount,
+          skippedCount: skippedTotal,
           dateRange: { start: dates[0], end: dates[dates.length - 1] },
           records: [],
         },

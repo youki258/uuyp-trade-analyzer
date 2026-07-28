@@ -2,6 +2,7 @@ import type {
   ApiResult,
   AuthInfo,
   DownloadTicketResult,
+  FetchProgress,
   FetchStartResult,
   ServerFile,
   SessionInfo,
@@ -45,6 +46,18 @@ export async function getAuthInfo(): Promise<AuthInfo> {
     return { authenticated: false };
   }
   return payload;
+}
+
+/** 获取明文 Token（仅在用户点击复制时调用，不落地存储） */
+export async function getFullToken(): Promise<string | null> {
+  const res = await fetch("/api/auth/token", {
+    signal: AbortSignal.timeout(5000),
+  });
+  const payload = await parseJson<ApiResult & { token?: string }>(res);
+  if (!res.ok || payload?.status !== "ok" || !payload.token) {
+    return null;
+  }
+  return payload.token;
 }
 
 export async function getServerFiles(): Promise<ServerFile[]> {
@@ -197,20 +210,24 @@ export async function startFetch(options: {
   noLease?: boolean;
   exportSplit?: boolean;
   leaseInPath?: string;
-}): Promise<FetchStartResult> {
+}): Promise<FetchStartResult & { started?: boolean }> {
   const res = await fetch("/api/fetch/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(options),
-    signal: AbortSignal.timeout(300000),
+    signal: AbortSignal.timeout(15000),
   });
-  const payload = await parseJson<FetchStartResult>(res);
+  const payload = await parseJson<Omit<FetchStartResult, "status"> & { status?: string }>(res);
   if (!res.ok) {
     return {
       status: "error",
       message: payload?.message || "抓取失败",
       code: payload?.code,
     };
+  }
+  // 后端改为后台线程执行，返回 202 {status:"started"}，随后通过 getFetchProgress 轮询
+  if (payload?.status === "started") {
+    return { status: "ok", started: true };
   }
   return {
     status: "ok",
@@ -219,6 +236,20 @@ export async function startFetch(options: {
       ? payload.files.filter(isServerFile)
       : [],
   };
+}
+
+export async function getFetchProgress(): Promise<FetchProgress> {
+  const res = await fetch("/api/fetch/progress", {
+    signal: AbortSignal.timeout(5000),
+  });
+  const payload = await parseJson<FetchProgress>(res);
+  if (!res.ok || !payload || typeof payload.status !== "string") {
+    return { status: "idle" };
+  }
+  if (Array.isArray(payload.files)) {
+    payload.files = payload.files.filter(isServerFile);
+  }
+  return payload;
 }
 
 export async function createDownloadTicket(

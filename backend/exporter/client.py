@@ -4,11 +4,14 @@
 """
 
 import json
+import logging
 import random
 import string
 import time
 import requests
 from typing import Optional, Dict, List, Any
+
+logger = logging.getLogger(__name__)
 
 
 class UUYPClient:
@@ -174,11 +177,11 @@ class UUYPClient:
             uk = (result.get("data") or {}).get("uk", "")
             if uk:
                 self.session.headers["uk"] = uk
-                print("[OK] uk 设备校验码获取成功")
+                logger.info("[OK] uk 设备校验码获取成功")
             else:
-                print(f"[!] uk 获取失败 (code={result.get('code')}, 不影响基本功能)")
+                logger.warning(f"[!] uk 获取失败 (code={result.get('code')}, 不影响基本功能)")
         except Exception as e:
-            print(f"[!] uk 获取异常（不影响基本功能）: {e}")
+            logger.warning(f"[!] uk 获取异常（不影响基本功能）: {e}")
 
     def _verify_token(self):
         """验证 Token 是否有效，并获取用户信息"""
@@ -187,7 +190,7 @@ class UUYPClient:
             if "Data" in info and info.get("Code") == 0:
                 self.nickname = info["Data"].get("NickName", "")
                 self.user_id = info["Data"].get("UserId", "")
-                print("[OK] Token 验证成功")
+                logger.info("[OK] Token 验证成功")
             else:
                 raise Exception(f"Token 验证失败: {info.get('Msg', '未知错误')}")
         except Exception as e:
@@ -196,7 +199,7 @@ class UUYPClient:
     # ==================== 登录认证 ====================
 
     @staticmethod
-    def send_sms_code(phone: str, region_code: int = 86) -> Dict:
+    def send_sms_code(phone: str, region_code: int = 86) -> tuple:
         """
         发送短信验证码（APP 端方式）
         :param phone: 手机号
@@ -219,11 +222,11 @@ class UUYPClient:
         result = response.json()
 
         if result.get("Code") == 5050:
-            print("[!] 该手机号需要手动发送短信验证（SmsUpSignIn）")
+            logger.warning("[!] 该手机号需要手动发送短信验证（SmsUpSignIn）")
         elif result.get("Code") == 0:
-            print("[OK] 验证码发送成功")
+            logger.info("[OK] 验证码发送成功")
         else:
-            print(f"[FAIL] 验证码发送失败: {result.get('Msg', '未知错误')}")
+            logger.warning(f"[FAIL] 验证码发送失败: {result.get('Msg', '未知错误')}")
 
         return result, device_info, headers
 
@@ -240,7 +243,7 @@ class UUYPClient:
         return response.json()
 
     @staticmethod
-    def sms_sign_in(phone: str, code: str, session_id: str, headers: Dict = None) -> Dict:
+    def sms_sign_in(phone: str, code: str, session_id: str, headers: Optional[Dict] = None) -> Dict:
         """
         通过短信验证码登录
         :param phone: 手机号
@@ -265,10 +268,10 @@ class UUYPClient:
         result = response.json()
 
         if result.get("Code") == 0 and "Data" in result and "Token" in result["Data"]:
-            print("[OK] 登录成功")
+            logger.info("[OK] 登录成功")
             return result
         else:
-            print(f"[FAIL] 登录失败: {result.get('Msg', '未知错误')}")
+            logger.warning(f"[FAIL] 登录失败: {result.get('Msg', '未知错误')}")
             return result
 
     @staticmethod
@@ -300,15 +303,15 @@ class UUYPClient:
         result = response.json()
 
         if result.get("Code") == 0 and "Data" in result and "Token" in result["Data"]:
-            print("[OK] 密码登录成功")
+            logger.info("[OK] 密码登录成功")
         else:
-            print(f"[FAIL] 密码登录失败: {result.get('Msg', '未知错误')}")
+            logger.warning(f"[FAIL] 密码登录失败: {result.get('Msg', '未知错误')}")
 
         return result
 
     # ==================== API 调用 ====================
 
-    def call_api(self, method: str, path: str, data: Dict = None) -> requests.Response:
+    def call_api(self, method: str, path: str, data: Optional[Dict] = None) -> requests.Response:
         """
         调用 API
         :param method: GET, POST, PUT, DELETE
@@ -330,7 +333,7 @@ class UUYPClient:
                 raise ValueError(f"不支持的 HTTP 方法: {method}")
 
             # 调试日志 — 不记录响应内容，防止泄露用户数据
-            print(f"[API] {method} {path} -> {response.status_code}")
+            logger.info(f"[API] {method} {path} -> {response.status_code}")
             return response
 
         except requests.exceptions.RequestException as e:
@@ -425,7 +428,7 @@ class UUYPClient:
 
     def get_lease_in_orders(self, page: int = 1, page_size: int = 50,
                             sort_type: int = 0, keywords: str = "",
-                            api_path: str = None) -> Dict:
+                            api_path: Optional[str] = None) -> Dict:
         """
         获取租入订单列表
 
@@ -448,8 +451,8 @@ class UUYPClient:
         }
 
         if not api_path:
-            print("[!] 未提供 --lease-in-path，跳过租入订单抓取")
-            print("    抓包方法：Fiddler/Charles/mitmproxy -> APP 我的账单 -> 租赁 -> 租入")
+            logger.warning("[!] 未提供 --lease-in-path，跳过租入订单抓取")
+            logger.info("    抓包方法：Fiddler/Charles/mitmproxy -> APP 我的账单 -> 租赁 -> 租入")
             return {"Code": -1, "Msg": "租入订单接口未配置，请使用 --lease-in-path 传入抓包路径"}
 
         try:
@@ -457,13 +460,13 @@ class UUYPClient:
             result = response.json()
             code = result.get("Code") or result.get("code")
             if code == 0:
-                print(f"[OK] 租入订单接口调用成功: {api_path}")
+                logger.info(f"[OK] 租入订单接口调用成功: {api_path}")
             else:
                 msg = result.get("Msg") or result.get("msg") or ""
-                print(f"[!] 租入订单接口返回 code={code}, msg={msg}")
+                logger.warning(f"[!] 租入订单接口返回 code={code}, msg={msg}")
             return result
         except Exception as e:
-            print(f"[!] 租入订单接口请求异常: {e}")
+            logger.warning(f"[!] 租入订单接口请求异常: {e}")
             return {"Code": -1, "Msg": f"租入订单接口请求异常: {e}"}
 
     def get_todo_orders(self, page: int = 1, page_size: int = 100) -> Dict:

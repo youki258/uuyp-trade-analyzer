@@ -11,7 +11,7 @@ import { formatCurrency } from "@/lib/utils";
 export function TrendPage() {
   const { getTimeSeries, hasData } = useTradeData();
   const navigate = useNavigate();
-  const [granularity, setGranularity] = useState<"day" | "week" | "month">("day");
+  const [granularity, setGranularity] = useState<"day" | "week" | "month">("month");
 
   if (!hasData) {
     return (
