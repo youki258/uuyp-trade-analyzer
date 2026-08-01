@@ -9,12 +9,13 @@ RUN npm run build
 # Stage 2: Python 运行时
 FROM python:3.11-slim
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.12 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
 
 WORKDIR /app
 
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev \
+    && python -m pip uninstall --yes setuptools wheel
 
 COPY backend/ ./backend/
 COPY --from=frontend-build /app/static ./static
