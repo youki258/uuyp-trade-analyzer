@@ -16,7 +16,7 @@ WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev
 
-COPY backend/ ./
+COPY backend/ ./backend/
 COPY --from=frontend-build /app/static ./static
 
 # 非 root 用户运行
@@ -37,4 +37,4 @@ EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/status')" || exit 1
 
-CMD [".venv/bin/gunicorn", "-w", "4", "-b", "0.0.0.0:8765", "--timeout", "300", "app:app"]
+CMD [".venv/bin/gunicorn", "-w", "4", "-b", "0.0.0.0:8765", "--timeout", "300", "backend.app:app"]
