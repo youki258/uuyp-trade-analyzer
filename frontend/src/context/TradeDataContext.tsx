@@ -1,14 +1,6 @@
-import { createContext, useContext, type ReactNode } from "react";
-import { useTradeDataCore, type TradeDataState } from "@/hooks/useTradeDataCore";
-
-interface TradeDataContextType extends TradeDataState {
-  loadFiles: (files: File[]) => Promise<void>;
-  getTimeSeries: (granularity: "day" | "week" | "month") => import("@/types/trade").TimeSeriesPoint[];
-  reset: () => void;
-  hasData: boolean;
-}
-
-const TradeDataContext = createContext<TradeDataContextType | null>(null);
+import type { ReactNode } from "react";
+import { useTradeDataCore } from "@/hooks/useTradeDataCore";
+import { TradeDataContext } from "./trade-data-context";
 
 export function TradeDataProvider({ children }: { children: ReactNode }) {
   const tradeData = useTradeDataCore();
@@ -17,12 +9,4 @@ export function TradeDataProvider({ children }: { children: ReactNode }) {
       {children}
     </TradeDataContext.Provider>
   );
-}
-
-export function useTradeData() {
-  const ctx = useContext(TradeDataContext);
-  if (!ctx) {
-    throw new Error("useTradeData must be used within TradeDataProvider");
-  }
-  return ctx;
 }

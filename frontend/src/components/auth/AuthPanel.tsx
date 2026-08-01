@@ -50,6 +50,7 @@ export function AuthPanel({
   const [confirmDestroy, setConfirmDestroy] = useState(false);
   const confirmTimerRef = useRef<number | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [tokenRevealed, setTokenRevealed] = useState(false);
   const [loginMethod, setLoginMethod] = useState<LoginMethod>("sms");
 
   useEffect(() => {
@@ -57,6 +58,11 @@ export function AuthPanel({
       if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    setTokenRevealed(Boolean(authInfo.tokenRevealUsed));
+    setCopyState("idle");
+  }, [authInfo.tokenMasked, authInfo.tokenRevealUsed]);
 
   function formatProgressMessage(progress: FetchProgress): string {
     const stageName = progress.stageName || progress.stage || "抓取中";
@@ -152,6 +158,7 @@ export function AuthPanel({
       }
       await navigator.clipboard.writeText(token);
       setCopyState("copied");
+      setTokenRevealed(true);
     } catch {
       setCopyState("failed");
     } finally {
@@ -230,8 +237,9 @@ export function AuthPanel({
                   variant="outline"
                   size="sm"
                   className="shrink-0"
+                  disabled={authInfo.tokenRevealUsed || tokenRevealed}
                 >
-                  {copyState === "copied" ? (
+                  {authInfo.tokenRevealUsed || tokenRevealed || copyState === "copied" ? (
                     <>
                       <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
                       已复制
@@ -247,10 +255,11 @@ export function AuthPanel({
                 </Button>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
                 onClick={handleFetch}
                 disabled={isBusy || fetchLoading}
+                className="sm:flex-1"
               >
                 {fetchLoading ? "正在抓取账单..." : "从悠悠有品抓取账单"}
                 <Download className="ml-2 h-4 w-4" />
@@ -259,12 +268,13 @@ export function AuthPanel({
                 onClick={handleDestroyClick}
                 disabled={isBusy || destroyLoading}
                 variant="outline"
-                className={`border-destructive/50 text-red-400 hover:bg-destructive/10 hover:text-red-300 ${
+                size="sm"
+                className={`self-end sm:self-auto sm:ml-auto border-destructive/50 text-red-400 hover:bg-destructive/10 hover:text-red-300 ${
                   confirmDestroy ? "bg-destructive/15 border-destructive" : ""
                 }`}
               >
                 {confirmDestroy ? "确认销毁？" : "销毁会话"}
-                <LogOut className="ml-2 h-4 w-4" />
+                <LogOut className="ml-2 h-3.5 w-3.5" />
               </Button>
             </div>
             <p className="mt-3 text-center text-xs text-muted-foreground">

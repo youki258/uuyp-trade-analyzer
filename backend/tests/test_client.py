@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from exporter.client import UUYPClient
+from exporter.client import ApiResponse, UUYPApiError, UUYPClient
 
 
 def _mock_response(payload, status_code=200):
@@ -74,6 +74,12 @@ class TestSmsSignIn:
         result = UUYPClient.sms_sign_in("13800000000", "000000", "sess_id", headers={})
         assert result["Code"] == 84101
 
+    @patch("exporter.client.requests.post")
+    def test_passes_region_code(self, mock_post):
+        mock_post.return_value = _mock_response({"Code": 0, "Data": {"Token": "tok_sms"}})
+        UUYPClient.sms_sign_in("13800000000", "123456", "sess_id", headers={}, region_code=1)
+        assert mock_post.call_args[1]["json"]["Area"] == 1
+
 
 class TestSendSmsCode:
     @patch("exporter.client.requests.post")
@@ -113,9 +119,40 @@ class TestVerifyToken:
             UUYPClient(token="tok_expired", app_type="web")
 
 
+class TestFetchUk:
+    @patch("exporter.client.requests.Session.post")
+    def test_non_object_response_does_not_break_app_client(self, mock_post):
+        mock_post.return_value = _mock_response(["unexpected"])
+        UUYPClient(token="", app_type="app")
+        mock_post.assert_called_once()
+
+    @patch("exporter.client.requests.Session.post")
+    def test_malformed_nested_data_does_not_break_app_client(self, mock_post):
+        mock_post.return_value = _mock_response({"data": []})
+        UUYPClient(token="", app_type="app")
+        mock_post.assert_called_once()
+
+
 # ==================== call_api ====================
 
 class TestCallApi:
+    def test_call_normalizes_mixed_case_response(self):
+        client = _make_client()
+        client.session.get = MagicMock(
+            return_value=_mock_response({"code": "0", "data": {"ok": True}, "msg": "成功"})
+        )
+        result = client._call("GET", "/api/test")
+        assert isinstance(result, ApiResponse)
+        assert result.code == 0
+        assert result.data == {"ok": True}
+        assert result.message == "成功"
+
+    def test_call_rejects_non_object_json(self):
+        client = _make_client()
+        client.session.get = MagicMock(return_value=_mock_response(["invalid"]))
+        with pytest.raises(UUYPApiError, match="JSON object"):
+            client._call("GET", "/api/test")
+
     def test_get_uses_session_get(self):
         client = _make_client()
         client.session.get = MagicMock(return_value=_mock_response({"Code": 0}))

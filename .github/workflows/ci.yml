@@ -29,6 +29,9 @@ jobs:
       - name: Run Python tests
         run: cd backend && uv run pytest tests/ -v
 
+      - name: Audit Python dependencies
+        run: cd backend && uv run pip-audit
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -42,7 +45,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: cd frontend && (npm ci || npm install)
+        run: cd frontend && npm ci
 
       - name: ESLint
         run: cd frontend && npm run lint
@@ -52,3 +55,38 @@ jobs:
 
       - name: Build
         run: cd frontend && npm run build
+
+      - name: Audit frontend dependencies
+        run: |
+          set +e
+          npm audit --prefix frontend --audit-level=high --json > npm-audit.json
+          audit_status=$?
+          set -e
+          node .github/scripts/check-npm-audit.mjs npm-audit.json
+          test "$audit_status" -eq 0 || echo "npm audit reported only allowlisted findings"
+
+  container:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for security scan
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: uuyp-trade-analyzer:ci
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: uuyp-trade-analyzer:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH

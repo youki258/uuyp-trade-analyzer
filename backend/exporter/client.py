@@ -9,9 +9,42 @@ import random
 import string
 import time
 import requests
+from dataclasses import dataclass
 from typing import Optional, Dict, List, Any
 
 logger = logging.getLogger(__name__)
+
+
+class UUYPApiError(Exception):
+    """UUYP API transport or response parsing error."""
+
+
+@dataclass(frozen=True)
+class ApiResponse:
+    """Normalized representation of UUYP's mixed-case API response."""
+
+    code: int
+    data: Dict[str, Any]
+    message: str
+    raw: Dict[str, Any]
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> "ApiResponse":
+        if not isinstance(payload, dict):
+            raise UUYPApiError("API response is not a JSON object")
+
+        raw = dict(payload)
+        raw_code = payload.get("Code", payload.get("code", -1))
+        try:
+            code = int(str(raw_code))
+        except (TypeError, ValueError):
+            code = -1
+
+        raw_data = payload.get("Data", payload.get("data", {}))
+        data = raw_data if isinstance(raw_data, dict) else {}
+        raw_message = payload.get("Msg", payload.get("msg", ""))
+        message = raw_message.strip() if isinstance(raw_message, str) else ""
+        return cls(code=code, data=data, message=message or "请求失败", raw=raw)
 
 
 class UUYPClient:
@@ -167,34 +200,36 @@ class UUYPClient:
                 "version": "v1.0.0",
                 "Sessionid": self.session_id,
             }
-            resp = requests.post(
+            resp = self.session.post(
                 f"{self.BASE_URL}/api/app",
                 json=data,
-                headers={"Content-Type": "application/json"},
                 timeout=10,
             )
             result = resp.json()
-            uk = (result.get("data") or {}).get("uk", "")
+            if not isinstance(result, dict):
+                raise ValueError("uk API response is not an object")
+            raw_data = result.get("data")
+            uk = raw_data.get("uk", "") if isinstance(raw_data, dict) else ""
             if uk:
                 self.session.headers["uk"] = uk
                 logger.info("[OK] uk 设备校验码获取成功")
             else:
                 logger.warning(f"[!] uk 获取失败 (code={result.get('code')}, 不影响基本功能)")
-        except Exception as e:
+        except (requests.RequestException, ValueError, KeyError, TypeError) as e:
             logger.warning(f"[!] uk 获取异常（不影响基本功能）: {e}")
 
     def _verify_token(self):
         """验证 Token 是否有效，并获取用户信息"""
         try:
-            info = self.call_api("GET", "/api/user/Account/getUserInfo").json()
-            if "Data" in info and info.get("Code") == 0:
-                self.nickname = info["Data"].get("NickName", "")
-                self.user_id = info["Data"].get("UserId", "")
+            info = self._call("GET", "/api/user/Account/getUserInfo")
+            if info.code == 0:
+                self.nickname = info.data.get("NickName", "")
+                self.user_id = info.data.get("UserId", "")
                 logger.info("[OK] Token 验证成功")
             else:
-                raise Exception(f"Token 验证失败: {info.get('Msg', '未知错误')}")
-        except Exception as e:
-            raise Exception(f"Token 无效或已过期，请重新获取: {e}")
+                raise UUYPApiError(f"Token 验证失败: {info.message}")
+        except UUYPApiError as e:
+            raise UUYPApiError(f"Token 无效或已过期，请重新获取: {e}") from e
 
     # ==================== 登录认证 ====================
 
@@ -243,7 +278,13 @@ class UUYPClient:
         return response.json()
 
     @staticmethod
-    def sms_sign_in(phone: str, code: str, session_id: str, headers: Optional[Dict] = None) -> Dict:
+    def sms_sign_in(
+        phone: str,
+        code: str,
+        session_id: str,
+        headers: Optional[Dict] = None,
+        region_code: int = 86,
+    ) -> Dict:
         """
         通过短信验证码登录
         :param phone: 手机号
@@ -258,7 +299,7 @@ class UUYPClient:
             url = f"{UUYPClient.BASE_URL}/api/user/Auth/SmsSignIn"
 
         data = {
-            "Area": 86,
+            "Area": region_code,
             "Code": code,
             "Sessionid": session_id,
             "Mobile": phone,
@@ -337,14 +378,22 @@ class UUYPClient:
             return response
 
         except requests.exceptions.RequestException as e:
-            raise Exception(f"网络请求失败: {e}")
+            raise UUYPApiError(f"网络请求失败: {e}") from e
+
+    def _call(self, method: str, path: str, data: Optional[Dict] = None) -> ApiResponse:
+        """调用 API 并统一解析 Code/Data/Msg 响应字段。"""
+        response = self.call_api(method, path, data)
+        try:
+            return ApiResponse.from_payload(response.json())
+        except (ValueError, requests.exceptions.JSONDecodeError) as e:
+            raise UUYPApiError(f"API 返回无效 JSON: {e}") from e
 
     @staticmethod
     def _is_json(data: str) -> bool:
         try:
             json.loads(data)
             return True
-        except Exception:
+        except ValueError:
             return False
 
     # ==================== 交易数据获取 ====================
@@ -368,8 +417,7 @@ class UUYPClient:
             "sceneType": 0,
             "Sessionid": self.session_id,
         }
-        response = self.call_api("POST", "/api/youpin/bff/trade/sale/v1/sell/list", data)
-        return response.json()
+        return self._call("POST", "/api/youpin/bff/trade/sale/v1/sell/list", data).raw
 
     def get_buy_orders(self, page: int = 1, page_size: int = 20,
                        order_status: int = 340) -> Dict:
@@ -389,8 +437,7 @@ class UUYPClient:
             "sceneType": 0,
             "Sessionid": self.session_id,
         }
-        response = self.call_api("POST", "/api/youpin/bff/trade/sale/v1/buy/list", data)
-        return response.json()
+        return self._call("POST", "/api/youpin/bff/trade/sale/v1/buy/list", data).raw
 
     def get_order_detail(self, order_no: str) -> Dict:
         """
@@ -403,8 +450,7 @@ class UUYPClient:
             "userId": self.user_id,
             "Sessionid": self.session_id,
         }
-        response = self.call_api("POST", "/api/youpin/bff/trade/v1/order/query/detail", data)
-        return response.json()
+        return self._call("POST", "/api/youpin/bff/trade/v1/order/query/detail", data).raw
 
     def get_lease_out_orders(self, page: int = 1, page_size: int = 50,
                              sort_type: int = 0, keywords: str = "") -> Dict:
@@ -423,8 +469,7 @@ class UUYPClient:
             "sortType": sort_type,
             "keywords": keywords,
         }
-        response = self.call_api("POST", "/api/youpin/bff/trade/v1/order/lease/out/list", data)
-        return response.json()
+        return self._call("POST", "/api/youpin/bff/trade/v1/order/lease/out/list", data).raw
 
     def get_lease_in_orders(self, page: int = 1, page_size: int = 50,
                             sort_type: int = 0, keywords: str = "",
@@ -456,16 +501,13 @@ class UUYPClient:
             return {"Code": -1, "Msg": "租入订单接口未配置，请使用 --lease-in-path 传入抓包路径"}
 
         try:
-            response = self.call_api("POST", api_path, data)
-            result = response.json()
-            code = result.get("Code") or result.get("code")
-            if code == 0:
+            result = self._call("POST", api_path, data)
+            if result.code == 0:
                 logger.info(f"[OK] 租入订单接口调用成功: {api_path}")
             else:
-                msg = result.get("Msg") or result.get("msg") or ""
-                logger.warning(f"[!] 租入订单接口返回 code={code}, msg={msg}")
-            return result
-        except Exception as e:
+                logger.warning(f"[!] 租入订单接口返回 code={result.code}, msg={result.message}")
+            return result.raw
+        except UUYPApiError as e:
             logger.warning(f"[!] 租入订单接口请求异常: {e}")
             return {"Code": -1, "Msg": f"租入订单接口请求异常: {e}"}
 
@@ -482,13 +524,11 @@ class UUYPClient:
             "pageSize": page_size,
             "Sessionid": self.session_id,
         }
-        response = self.call_api("POST", "/api/youpin/bff/trade/todo/v1/orderTodo/list", data)
-        return response.json()
+        return self._call("POST", "/api/youpin/bff/trade/todo/v1/orderTodo/list", data).raw
 
     def get_user_info(self) -> Dict:
         """获取用户信息"""
-        response = self.call_api("GET", "/api/user/Account/getUserInfo")
-        return response.json()
+        return self._call("GET", "/api/user/Account/getUserInfo").raw
 
     def get_sell_list(self) -> List[Dict]:
         """获取当前在售商品列表（全量）"""
@@ -497,11 +537,10 @@ class UUYPClient:
         while True:
             page += 1
             data = {"pageIndex": page, "pageSize": 100, "whetherMerge": 0}
-            response = self.call_api("POST", "/api/youpin/bff/new/commodity/v1/commodity/list/sell", data)
-            result = response.json()
-            if result.get("code") != 0:
+            result = self._call("POST", "/api/youpin/bff/new/commodity/v1/commodity/list/sell", data)
+            if result.code != 0:
                 break
-            items = result.get("data", {}).get("commodityInfoList", [])
+            items = result.data.get("commodityInfoList", [])
             all_items.extend(items)
             if len(items) < 100:
                 break

@@ -36,10 +36,22 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: cd frontend && npm install
+        run: cd frontend && npm ci
 
       - name: Run frontend tests
         run: cd frontend && npx vitest run
+
+      - name: Audit Python dependencies
+        run: cd backend && uv run pip-audit
+
+      - name: Audit frontend dependencies
+        run: |
+          set +e
+          npm audit --prefix frontend --audit-level=high --json > npm-audit.json
+          audit_status=$?
+          set -e
+          node .github/scripts/check-npm-audit.mjs npm-audit.json
+          test "$audit_status" -eq 0 || echo "npm audit reported only allowlisted findings"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -51,13 +63,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          load: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Push image
+        run: |
+          docker push ghcr.io/${{ github.repository }}:latest
+          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}

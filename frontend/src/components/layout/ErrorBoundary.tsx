@@ -20,7 +20,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[ErrorBoundary] Uncaught error:", error.message, errorInfo.componentStack);
+    if (import.meta.env.DEV) {
+      console.error("[ErrorBoundary] Uncaught error:", error.message, errorInfo.componentStack);
+    }
   }
 
   handleReset = () => {

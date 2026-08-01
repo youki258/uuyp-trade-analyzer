@@ -17,12 +17,14 @@ export interface AuthInfo {
   userId?: string;
   appType?: "app" | "web";
   tokenMasked?: string;
+  tokenRevealUsed?: boolean;
 }
 
 export interface ApiResult {
   status: "ok" | "error";
   message?: string;
-  code?: number;
+  code?: number | string;
+  detail?: string;
 }
 
 export interface FetchStartResult extends ApiResult {

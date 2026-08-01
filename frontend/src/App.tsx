@@ -6,7 +6,8 @@ import { ProfitAnalysisPage } from "@/pages/ProfitAnalysisPage";
 import { CS2AnalysisPage } from "@/pages/CS2AnalysisPage";
 import { TrendPage } from "@/pages/TrendPage";
 import { TradeDetailPage } from "@/pages/TradeDetailPage";
-import { TradeDataProvider, useTradeData } from "@/context/TradeDataContext";
+import { TradeDataProvider } from "@/context/TradeDataContext";
+import { useTradeData } from "@/hooks/useTradeData";
 
 function RequireData({ children }: { children: React.ReactNode }) {
   const { hasData } = useTradeData();

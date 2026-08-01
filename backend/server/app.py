@@ -10,7 +10,9 @@ from urllib.parse import urlparse
 
 from flask import Flask, abort, g, jsonify, request, send_file, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import HTTPException
 
+from exporter.client import ApiResponse
 from .config import load_config
 from .download_tickets import OneTimeDownloadTicketStore
 from .rate_limit import InMemoryRateLimiter, RateLimitRule
@@ -19,26 +21,6 @@ from .storage import SessionArtifactStore
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("uuyp.audit")
-
-
-def _normalize_code(payload: dict) -> int:
-    code = payload.get("Code", payload.get("code", -1))
-    try:
-        return int(code)
-    except (TypeError, ValueError):
-        return -1
-
-
-def _normalize_data(payload: dict) -> dict:
-    data = payload.get("Data", payload.get("data", {}))
-    return data if isinstance(data, dict) else {}
-
-
-def _normalize_msg(payload: dict) -> str:
-    msg = payload.get("Msg", payload.get("msg", ""))
-    if isinstance(msg, str) and msg.strip():
-        return msg.strip()
-    return "请求失败"
 
 
 _PHONE_PATTERN = re.compile(r"^1[3-9]\d{9}$")
@@ -128,6 +110,25 @@ def _audit(event: str, **fields) -> None:
     audit_logger.info("[audit] %s", json.dumps(payload, ensure_ascii=False))
 
 
+def _error_response(
+    message: str,
+    status_code: int,
+    *,
+    code: int | str | None = None,
+    detail: str | None = None,
+    **extra,
+):
+    """Return the stable public error envelope used by every API failure path."""
+    payload = {
+        "status": "error",
+        "code": status_code if code is None else code,
+        "message": message,
+        "detail": message if detail is None else detail,
+    }
+    payload.update(extra)
+    return jsonify(payload), status_code
+
+
 def create_stateless_app(dist_dir: Path) -> Flask:
     """创建无状态临时服务应用。
 
@@ -158,11 +159,37 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     rate_limiter = InMemoryRateLimiter()
     artifacts = SessionArtifactStore()
     tickets = OneTimeDownloadTicketStore()
+    token_reveal_lock = threading.Lock()
     last_cleanup_at = 0.0
 
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SECURE"] = cfg.cookie_secure
     app.config["SESSION_COOKIE_SAMESITE"] = cfg.cookie_samesite
+
+    @app.errorhandler(HTTPException)
+    def handle_http_error(error: HTTPException):
+        status_code = error.code or 500
+        message = error.description or "请求失败"
+        return jsonify(
+            {
+                "status": "error",
+                "code": status_code,
+                "message": message,
+                "detail": message,
+            }
+        ), status_code
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(error: Exception):
+        logger.exception("[server] unexpected request error: %s", error)
+        return jsonify(
+            {
+                "status": "error",
+                "code": "internal_error",
+                "message": "服务器内部错误",
+                "detail": "服务器内部错误",
+            }
+        ), 500
 
     @app.before_request
     def ensure_session():
@@ -192,7 +219,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         if not record:
             record = sessions.create()
             if not record:
-                return jsonify({"status": "error", "message": "server busy"}), 503
+                return _error_response("server busy", 503, code="server_busy")
             g._set_session_cookie = record.session_id
 
         g.session_id = record.session_id
@@ -207,7 +234,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     def _check_rate_limit(action: str, rule: RateLimitRule, include_session: bool = False):
         key = _rate_limit_key(action, include_session=include_session)
         if not rate_limiter.allow(key, rule):
-            return jsonify({"status": "error", "message": "too many requests"}), 429
+            return _error_response("too many requests", 429, code="rate_limited")
         return None
 
     def _check_rate_limit_both(action: str, ip_rule: RateLimitRule, session_rule: RateLimitRule):
@@ -288,7 +315,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     def destroy_session():
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         sessions.destroy(g.session_id)
         tickets.invalidate_session(g.session_id)
@@ -312,7 +339,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         payload = request.get_json(silent=True) or {}
         token = str(payload.get("token", "")).strip()
@@ -321,9 +348,9 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             app_type = "app"
 
         if not token:
-            return jsonify({"status": "error", "message": "token is required"}), 400
+            return _error_response("token is required", 400, code="token_required")
         if len(token) < 20 or len(token) > 4096:
-            return jsonify({"status": "error", "message": "invalid token format"}), 400
+            return _error_response("invalid token format", 400, code="invalid_token_format")
 
         try:
             from exporter.client import UUYPClient
@@ -331,13 +358,14 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             client = UUYPClient(token=token, app_type=app_type)
         except Exception:
             logger.exception("[auth] token verify failed")
-            return jsonify({"status": "error", "message": "token invalid"}), 400
+            return _error_response("token invalid", 400, code="invalid_token")
 
         g.session_record.data["auth"] = {
             "token": token,
             "appType": app_type,
             "nickname": client.nickname,
             "userId": client.user_id,
+            "tokenRevealUsed": False,
             "createdAt": time.time(),
         }
         g.session_record.data.pop("sms", None)
@@ -367,16 +395,16 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         payload = request.get_json(silent=True) or {}
         phone = str(payload.get("phone", "")).strip()
         region_code = payload.get("regionCode", 86)
 
         if not phone:
-            return jsonify({"status": "error", "message": "phone is required"}), 400
+            return _error_response("phone is required", 400, code="phone_required")
         if not _is_valid_phone(phone):
-            return jsonify({"status": "error", "message": "invalid phone format"}), 400
+            return _error_response("invalid phone format", 400, code="invalid_phone_format")
 
         try:
             region_code = int(region_code)
@@ -389,14 +417,15 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             result, device_info, headers = UUYPClient.send_sms_code(phone, region_code)
         except Exception:
             logger.exception("[auth] send sms failed")
-            return jsonify({"status": "error", "message": "send sms failed"}), 500
+            return _error_response("send sms failed", 500, code="sms_send_failed")
 
-        code = _normalize_code(result)
-        data = _normalize_data(result)
-        msg = _normalize_msg(result)
+        response = ApiResponse.from_payload(result)
+        code = response.code
+        data = response.data
+        msg = response.message
 
         if code not in {0, 5050}:
-            return jsonify({"status": "error", "code": code, "message": msg, "hint": "manual_or_token"}), 400
+            return _error_response(msg, 400, code=code, hint="manual_or_token")
 
         g.session_record.data["sms"] = {
             "phone": phone,
@@ -414,7 +443,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 from exporter.client import UUYPClient
 
                 config_result = UUYPClient.get_sms_up_sign_in_config(headers)
-                config_data = _normalize_data(config_result)
+                config_data = ApiResponse.from_payload(config_result).data
                 sms_up_content = str(config_data.get("SmsUpContent", "")).strip()
                 sms_up_number = str(config_data.get("SmsUpNumber", "")).strip()
                 _audit("auth.sms.up_config", sessionId=g.session_id, ok=bool(sms_up_content and sms_up_number))
@@ -447,23 +476,23 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         payload = request.get_json(silent=True) or {}
         phone = str(payload.get("phone", "")).strip()
         code_input = str(payload.get("code", "")).strip()
 
         if phone and not _is_valid_phone(phone):
-            return jsonify({"status": "error", "message": "invalid phone format"}), 400
+            return _error_response("invalid phone format", 400, code="invalid_phone_format")
         if not _is_valid_sms_code(code_input):
-            return jsonify({"status": "error", "message": "invalid sms code format"}), 400
+            return _error_response("invalid sms code format", 400, code="invalid_sms_code_format")
 
         sms_ctx = g.session_record.data.get("sms", {})
         ctx_phone = str(sms_ctx.get("phone", "")).strip()
         if not ctx_phone:
-            return jsonify({"status": "error", "message": "sms session not initialized"}), 400
+            return _error_response("sms session not initialized", 400, code="sms_session_missing")
         if phone and phone != ctx_phone:
-            return jsonify({"status": "error", "message": "phone mismatch"}), 400
+            return _error_response("phone mismatch", 400, code="phone_mismatch")
 
         try:
             from exporter.client import UUYPClient
@@ -473,18 +502,20 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 code_input,
                 str(sms_ctx.get("deviceId", "")),
                 sms_ctx.get("headers", {}),
+                int(sms_ctx.get("regionCode", 86)),
             )
         except Exception:
             logger.exception("[auth] sms verify failed")
-            return jsonify({"status": "error", "message": "sms login failed"}), 500
+            return _error_response("sms login failed", 500, code="sms_login_failed")
 
-        code = _normalize_code(result)
-        data = _normalize_data(result)
-        msg = _normalize_msg(result)
+        response = ApiResponse.from_payload(result)
+        code = response.code
+        data = response.data
+        msg = response.message
         token = str(data.get("Token", "")).strip()
 
         if code != 0 or not token:
-            return jsonify({"status": "error", "code": code, "message": msg}), 400
+            return _error_response(msg, 400, code=code)
 
         app_type = "app"
         try:
@@ -502,6 +533,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             "appType": app_type,
             "nickname": nickname,
             "userId": user_id,
+            "tokenRevealUsed": False,
             "createdAt": time.time(),
         }
         _audit("auth.sms.verify.success", sessionId=g.session_id, userId=user_id)
@@ -530,17 +562,19 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         payload = request.get_json(silent=True) or {}
         username = str(payload.get("username", "")).strip()
         password = str(payload.get("password", "")).strip()
         if not username or not password:
-            return jsonify({"status": "error", "message": "username and password are required"}), 400
+            return _error_response(
+                "username and password are required", 400, code="credentials_required"
+            )
         if not _is_valid_phone(username):
-            return jsonify({"status": "error", "message": "invalid username format"}), 400
+            return _error_response("invalid username format", 400, code="invalid_username_format")
         if len(password) < 6 or len(password) > 128:
-            return jsonify({"status": "error", "message": "invalid password format"}), 400
+            return _error_response("invalid password format", 400, code="invalid_password_format")
 
         try:
             from exporter.client import UUYPClient
@@ -548,14 +582,15 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             result = UUYPClient.pwd_sign_in(username, password)
         except Exception:
             logger.exception("[auth] password sign in failed")
-            return jsonify({"status": "error", "message": "password login failed"}), 500
+            return _error_response("password login failed", 500, code="password_login_failed")
 
-        code = _normalize_code(result)
-        data = _normalize_data(result)
-        msg = _normalize_msg(result)
+        response = ApiResponse.from_payload(result)
+        code = response.code
+        data = response.data
+        msg = response.message
         token = str(data.get("Token", "")).strip()
         if code != 0 or not token:
-            return jsonify({"status": "error", "code": code, "message": msg}), 400
+            return _error_response(msg, 400, code=code)
 
         app_type = "web"
         try:
@@ -571,6 +606,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             "appType": app_type,
             "nickname": nickname,
             "userId": user_id,
+            "tokenRevealUsed": False,
             "createdAt": time.time(),
         }
         g.session_record.data.pop("sms", None)
@@ -602,6 +638,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
                 "userId": auth.get("userId", ""),
                 "appType": auth.get("appType", "app"),
                 "tokenMasked": token_masked,
+                "tokenRevealUsed": bool(auth.get("tokenRevealUsed", False)),
             }
         )
 
@@ -618,18 +655,27 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         auth, err = _require_auth()
         if err:
             return err
+        with token_reveal_lock:
+            if auth.get("tokenRevealUsed"):
+                return _error_response(
+                    "token has already been revealed",
+                    410,
+                    code="token_already_revealed",
+                )
+            auth["tokenRevealUsed"] = True
+            token = str(auth.get("token", ""))
         _audit("auth.token.reveal", sessionId=g.session_id)
-        return jsonify({"status": "ok", "token": str(auth.get("token", ""))})
+        return jsonify({"status": "ok", "token": token})
 
     def _require_auth() -> tuple[dict | None, tuple | None]:
         auth = g.session_record.data.get("auth")
         if not auth or not str(auth.get("token", "")).strip():
-            return None, (jsonify({"status": "error", "message": "not authenticated"}), 401)
+            return None, _error_response("not authenticated", 401, code="not_authenticated")
         return auth, None
 
     def _progress_path(session_id: str) -> Path:
@@ -733,7 +779,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         auth, err = _require_auth()
         if err:
@@ -747,7 +793,11 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         if lease_in_path is not None:
             lease_in_path = str(lease_in_path).strip() or None
             if lease_in_path and not lease_in_path.startswith("/api/"):
-                return jsonify({"status": "error", "message": "leaseInPath must start with /api/"}), 400
+                return _error_response(
+                    "leaseInPath must start with /api/",
+                    400,
+                    code="invalid_lease_path",
+                )
 
         token = str(auth.get("token", "")).strip()
         app_type = str(auth.get("appType", "app") or "app")
@@ -759,7 +809,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             and existing.get("status") == "running"
             and time.time() - float(existing.get("updatedAt", 0)) < 600
         ):
-            return jsonify({"status": "error", "message": "抓取任务正在进行中"}), 409
+            return _error_response("抓取任务正在进行中", 409, code="fetch_in_progress")
 
         _write_progress(
             g.session_id,
@@ -838,12 +888,12 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         payload = request.get_json(silent=True) or {}
         filename = str(payload.get("filename", "")).strip()
         if not filename:
-            return jsonify({"status": "error", "message": "filename is required"}), 400
+            return _error_response("filename is required", 400, code="filename_required")
 
         ttl = payload.get("ttlSeconds", 120)
         try:
@@ -853,7 +903,7 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         target = artifacts.resolve_session_file(g.session_id, filename)
         if not target:
-            return jsonify({"status": "error", "message": "file not found"}), 404
+            return _error_response("file not found", 404, code="file_not_found")
 
         token = tickets.create(g.session_id, target.name, ttl_seconds=ttl)
         _audit("download.ticket.created", sessionId=g.session_id, filename=target.name, ticket=token)
@@ -873,11 +923,11 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         filename = tickets.consume(ticket, g.session_id)
         if not filename:
-            return jsonify({"status": "error", "message": "ticket invalid or expired"}), 404
+            return _error_response("ticket invalid or expired", 404, code="ticket_invalid")
 
         target = artifacts.resolve_session_file(g.session_id, filename)
         if not target:
-            return jsonify({"status": "error", "message": "file not found"}), 404
+            return _error_response("file not found", 404, code="file_not_found")
 
         _audit("download.ticket.consumed", sessionId=g.session_id, filename=target.name)
 
@@ -898,13 +948,17 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
         ok, reason = _check_same_origin()
         if not ok:
-            return jsonify({"status": "error", "message": reason}), 403
+            return _error_response(reason, 403, code="invalid_origin")
 
         files = request.files.getlist("files")
         if not files:
-            return jsonify({"status": "error", "message": "no files uploaded"}), 400
+            return _error_response("no files uploaded", 400, code="files_required")
         if len(files) > MAX_UPLOAD_FILES:
-            return jsonify({"status": "error", "message": f"too many files (max {MAX_UPLOAD_FILES})"}), 400
+            return _error_response(
+                f"too many files (max {MAX_UPLOAD_FILES})",
+                400,
+                code="too_many_files",
+            )
 
         session_dir = artifacts.session_dir(g.session_id)
         saved_names: list[str] = []
@@ -912,18 +966,30 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         for upload in files:
             original_name = (upload.filename or "").strip()
             if not original_name:
-                return jsonify({"status": "error", "message": "invalid filename"}), 400
+                return _error_response("invalid filename", 400, code="invalid_filename")
 
             safe_name = Path(original_name).name
             if not safe_name.lower().endswith(".csv"):
-                return jsonify({"status": "error", "message": f"invalid file type: {safe_name}"}), 400
+                return _error_response(
+                    f"invalid file type: {safe_name}",
+                    400,
+                    code="invalid_file_type",
+                )
 
             sample = upload.stream.read(MAX_UPLOAD_FILE_SIZE + 1)
             upload.stream.seek(0)
             if len(sample) > MAX_UPLOAD_FILE_SIZE:
-                return jsonify({"status": "error", "message": f"file too large: {safe_name}"}), 400
+                return _error_response(
+                    f"file too large: {safe_name}",
+                    400,
+                    code="file_too_large",
+                )
             if not _looks_like_csv(sample[:4096]):
-                return jsonify({"status": "error", "message": f"invalid csv header: {safe_name}"}), 400
+                return _error_response(
+                    f"invalid csv header: {safe_name}",
+                    400,
+                    code="invalid_csv_header",
+                )
 
             suffix = Path(safe_name).suffix
             stem = Path(safe_name).stem

@@ -32,7 +32,7 @@ def main():
     log = logging.getLogger("werkzeug")
     log.setLevel(logging.WARNING)
 
-    print(f"[OK] 开发服务器启动: http://{args.host}:{args.port}/")
+    logging.getLogger(__name__).info("开发服务器启动: http://%s:%s/", args.host, args.port)
     app.run(host=args.host, port=args.port, debug=False)
 
 

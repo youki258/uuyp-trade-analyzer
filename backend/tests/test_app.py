@@ -1,0 +1,126 @@
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from server.app import create_stateless_app
+
+
+ORIGIN = "http://localhost"
+
+
+@pytest.fixture
+def app(tmp_path: Path):
+    app = create_stateless_app(tmp_path)
+    app.config.update(TESTING=True)
+
+    @app.get("/_test-error")
+    def test_error():
+        raise RuntimeError("secret internal detail")
+
+    return app
+
+
+def _login_with_mock_token(client):
+    mock_client = MagicMock(nickname="tester", user_id="user-1")
+    with patch("exporter.client.UUYPClient", return_value=mock_client):
+        response = client.post(
+            "/api/auth/token",
+            json={"token": "token-12345678901234567890", "appType": "web"},
+            headers={"Origin": ORIGIN},
+        )
+    assert response.status_code == 200
+    return response
+
+
+def test_auth_me_masks_token_and_reveal_requires_auth(app):
+    client = app.test_client()
+
+    assert client.get("/api/auth/me").get_json() == {"authenticated": False}
+    unauthenticated = client.get("/api/auth/token")
+    assert unauthenticated.status_code == 401
+    assert unauthenticated.get_json() == {
+        "status": "error",
+        "code": "not_authenticated",
+        "message": "not authenticated",
+        "detail": "not authenticated",
+    }
+    _login_with_mock_token(client)
+
+    me = client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.get_json()["tokenMasked"] == "token-***7890"
+    assert "12345678901234567890" not in me.get_data(as_text=True)
+
+    reveal = client.get("/api/auth/token")
+    assert reveal.status_code == 200
+    assert reveal.get_json()["token"] == "token-12345678901234567890"
+
+    second_reveal = client.get("/api/auth/token")
+    assert second_reveal.status_code == 410
+    assert second_reveal.get_json() == {
+        "status": "error",
+        "code": "token_already_revealed",
+        "message": "token has already been revealed",
+        "detail": "token has already been revealed",
+    }
+
+
+def test_validation_errors_use_the_public_error_envelope(app):
+    response = app.test_client().post(
+        "/api/auth/token",
+        json={"token": ""},
+        headers={"Origin": ORIGIN},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "status": "error",
+        "code": "token_required",
+        "message": "token is required",
+        "detail": "token is required",
+    }
+
+
+def test_fetch_start_returns_accepted_and_progress_is_readable(app):
+    client = app.test_client()
+    _login_with_mock_token(client)
+
+    with patch("server.app.threading.Thread") as thread_cls:
+        response = client.post(
+            "/api/fetch/start",
+            json={"exportSplit": True},
+            headers={"Origin": ORIGIN},
+        )
+
+    assert response.status_code == 202
+    assert response.get_json() == {"status": "started"}
+    thread_cls.return_value.start.assert_called_once()
+
+    progress = client.get("/api/fetch/progress")
+    assert progress.status_code == 200
+    assert progress.get_json()["status"] == "running"
+
+
+def test_global_error_handler_returns_safe_structured_error(app):
+    response = app.test_client().get("/_test-error")
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "status": "error",
+        "code": "internal_error",
+        "message": "服务器内部错误",
+        "detail": "服务器内部错误",
+    }
+    assert "secret internal detail" not in response.get_data(as_text=True)
+
+
+def test_http_errors_use_structured_json(app):
+    response = app.test_client().get("/_missing-route")
+
+    assert response.status_code == 404
+    payload = response.get_json()
+    assert payload["status"] == "error"
+    assert payload["code"] == 404
+    assert payload["message"]
+    assert payload["detail"] == payload["message"]

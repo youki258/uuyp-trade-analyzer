@@ -170,7 +170,9 @@ export function useTradeDataCore() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : `数据处理出错: ${err}`;
-      console.error("[UUYP] loadFiles error:", err);
+      if (import.meta.env.DEV) {
+        console.error("[UUYP] loadFiles error:", err);
+      }
       setState((prev) => ({
         ...prev,
         isLoading: false,

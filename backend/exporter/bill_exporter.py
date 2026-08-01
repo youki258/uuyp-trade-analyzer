@@ -11,7 +11,7 @@ import time
 import requests
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable
-from .client import UUYPClient
+from .client import UUYPApiError, UUYPClient
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,8 @@ class BillExporter:
         for attempt in range(self.MAX_RETRIES):
             try:
                 result = func(*args, **kwargs)
+                if not isinstance(result, dict):
+                    raise ValueError("API response is not a JSON object")
                 # 检查风控错误
                 code = result.get("Code") or result.get("code")
                 if code == 84101:
@@ -60,7 +62,7 @@ class BillExporter:
                     time.sleep(30)
                     continue
                 return result
-            except (requests.RequestException, ValueError, KeyError) as e:
+            except (UUYPApiError, requests.RequestException, ValueError, KeyError, TypeError) as e:
                 logger.warning(f"[!] 请求失败 (尝试 {attempt + 1}/{self.MAX_RETRIES}): {e}")
                 if attempt < self.MAX_RETRIES - 1:
                     time.sleep(5 * (attempt + 1))
@@ -384,7 +386,7 @@ class BillExporter:
             if isinstance(ts, (int, float)):
                 return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d %H:%M:%S")
             return str(ts)
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             return str(ts)
 
     @staticmethod
@@ -413,7 +415,7 @@ class BillExporter:
                 qty = int(float(str(val)))
                 if qty > 0:
                     return qty
-            except Exception:
+            except (TypeError, ValueError):
                 continue
         return 1
 
