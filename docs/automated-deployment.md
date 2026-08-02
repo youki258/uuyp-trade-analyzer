@@ -9,7 +9,7 @@
 3. 将镜像推送到 GHCR 的 `latest` 和当前提交 SHA 标签。
 4. 使用 SSH 连接 VPS，拉取当前提交 SHA 对应的不可变镜像。
 5. 按现有配置重建 `uuyp` 容器：`127.0.0.1:8765:8765`、`restart=always`、单 Gunicorn worker。
-6. 在 VPS 内轮询 `/api/status`；健康后再由 runner 检查公网 HTTPS 地址。
+6. 在 VPS 内轮询本地 `/api/status`；健康后通过同一 SSH 通道从 VPS 检查公网 HTTPS 地址。
 7. 新容器不健康时，自动恢复部署前的旧镜像，并让 Actions 任务失败。
 
 同一时间只允许一个生产部署任务运行，避免多个提交同时重建容器。VPS 保留旧镜像，不会在部署脚本中执行镜像清理，便于回滚。
