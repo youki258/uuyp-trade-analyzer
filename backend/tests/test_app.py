@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -100,6 +101,59 @@ def test_fetch_start_returns_accepted_and_progress_is_readable(app):
     progress = client.get("/api/fetch/progress")
     assert progress.status_code == 200
     assert progress.get_json()["status"] == "running"
+
+
+def _create_download_url(client):
+    _login_with_mock_token(client)
+    upload = client.post(
+        "/api/upload-csv",
+        data={
+            "files": (
+                io.BytesIO("订单号,商品名称,成交价格(分),成交时间\norder-1,AK,100,2026-01-01\n".encode()),
+                "sample.csv",
+            )
+        },
+        content_type="multipart/form-data",
+        headers={"Origin": ORIGIN},
+    )
+    assert upload.status_code == 200
+    filename = upload.get_json()["saved"][0]
+
+    ticket = client.post(
+        "/api/download-ticket",
+        json={"filename": filename},
+        headers={"Origin": ORIGIN},
+    )
+    assert ticket.status_code == 200
+    return ticket.get_json()["downloadUrl"]
+
+
+def test_download_head_does_not_consume_ticket(app):
+    client = app.test_client()
+    download_url = _create_download_url(client)
+
+    head = client.head(download_url)
+    assert head.status_code == 200
+    assert "attachment" in head.headers["Content-Disposition"]
+    assert int(head.headers["Content-Length"]) > 0
+
+    downloaded = client.get(download_url)
+    assert downloaded.status_code == 200
+    assert b"order-1" in downloaded.data
+
+    consumed_again = client.get(download_url)
+    assert consumed_again.status_code == 404
+
+
+def test_download_ticket_works_without_session_cookie(app):
+    owner = app.test_client()
+    download_url = _create_download_url(owner)
+
+    mobile_downloader = app.test_client()
+    downloaded = mobile_downloader.get(download_url)
+
+    assert downloaded.status_code == 200
+    assert b"order-1" in downloaded.data
 
 
 def test_global_error_handler_returns_safe_structured_error(app):

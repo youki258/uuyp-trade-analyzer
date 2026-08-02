@@ -93,6 +93,7 @@ export function buildAnalysisExportCsv({
       "成交时间",
       "买家昵称",
       "卖家昵称",
+      "Steam报价ID",
       "状态",
     ],
     records.map((record) => [
@@ -106,6 +107,7 @@ export function buildAnalysisExportCsv({
       formatDate(record.tradeTime),
       record.buyerNickname,
       record.sellerNickname,
+      record.tradeOfferId || "",
       record.status,
     ]),
   );

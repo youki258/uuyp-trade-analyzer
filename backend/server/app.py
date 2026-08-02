@@ -923,21 +923,28 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             }
         )
 
-    @app.route("/api/download/<ticket>")
+    @app.route("/api/download/<ticket>", methods=["GET", "HEAD"])
     def consume_download_ticket(ticket: str):
         limited = _check_rate_limit("download_consume", RateLimitRule(max_requests=60, window_seconds=60))
         if limited:
             return limited
 
-        filename = tickets.consume(ticket, g.session_id)
-        if not filename:
+        # 浏览器导航通常会携带会话 Cookie；手机系统下载器可能只拿到 URL，
+        # 因此 Cookie 只在存在时用于校验，票据本身保存的会话用于定位文件。
+        cookie_session_id = request.cookies.get(cfg.session_cookie_name)
+        if request.method == "HEAD":
+            download_ticket = tickets.peek(ticket, cookie_session_id)
+        else:
+            download_ticket = tickets.consume(ticket, cookie_session_id)
+        if not download_ticket:
             return _error_response("ticket invalid or expired", 404, code="ticket_invalid")
 
-        target = artifacts.resolve_session_file(g.session_id, filename)
+        target = artifacts.resolve_session_file(download_ticket.session_id, download_ticket.filename)
         if not target:
             return _error_response("file not found", 404, code="file_not_found")
 
-        _audit("download.ticket.consumed", sessionId=g.session_id, filename=target.name)
+        if request.method == "GET":
+            _audit("download.ticket.consumed", sessionId=download_ticket.session_id, filename=target.name)
 
         return send_file(str(target.resolve()), as_attachment=True, download_name=target.name)
 

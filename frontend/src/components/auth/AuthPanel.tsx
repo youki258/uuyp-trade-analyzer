@@ -52,6 +52,7 @@ export function AuthPanel({
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [tokenRevealed, setTokenRevealed] = useState(false);
   const [loginMethod, setLoginMethod] = useState<LoginMethod>("sms");
+  const [detailEnhanced, setDetailEnhanced] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -98,7 +99,7 @@ export function AuthPanel({
     setFetchLoading(true);
     onFetchStart();
     try {
-      const result = await startFetch({ exportSplit: true });
+      const result = await startFetch({ exportSplit: true, detail: detailEnhanced });
       if (result.status !== "ok") {
         onFetchError(result.message || "抓取失败");
         return;
@@ -264,6 +265,19 @@ export function AuthPanel({
                 {fetchLoading ? "正在抓取账单..." : "从悠悠有品抓取账单"}
                 <Download className="ml-2 h-4 w-4" />
               </Button>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground sm:shrink-0">
+                <input
+                  type="checkbox"
+                  checked={detailEnhanced}
+                  onChange={(event) => setDetailEnhanced(event.target.checked)}
+                  disabled={isBusy || fetchLoading}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                <span>
+                  详情增强（较慢）
+                  <span className="ml-1 text-[11px] text-muted-foreground/70">补充缺失紧凑字段</span>
+                </span>
+              </label>
               <Button
                 onClick={handleDestroyClick}
                 disabled={isBusy || destroyLoading}

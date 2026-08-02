@@ -399,6 +399,88 @@ class BillExporter:
         return ""
 
     @staticmethod
+    def _detail(order: Dict) -> Dict:
+        """返回可选订单详情，避免详情缺失或格式异常影响列表导出。"""
+        detail = order.get("_detail")
+        return detail if isinstance(detail, dict) else {}
+
+    @classmethod
+    def _product_detail(cls, order: Dict) -> Dict:
+        """提取列表商品对象；详情商品只作为缺失字段的后备来源。"""
+        for value in (order.get("productDetail"), order.get("commodity")):
+            if isinstance(value, dict):
+                return value
+        return {}
+
+    @classmethod
+    def _compact_order_values(cls, order: Dict) -> Dict[str, Any]:
+        """按列表字段优先、详情字段后备的规则整理紧凑 CSV 字段。"""
+        product_detail = cls._product_detail(order)
+        detail = cls._detail(order)
+        detail_commodity = detail.get("commodity")
+        if not isinstance(detail_commodity, dict):
+            detail_commodity = {}
+
+        product_name = cls._extract_field(product_detail, "commodityName", "name")
+        if product_name == "":
+            product_name = cls._extract_field(order, "commodityName", "name")
+        if product_name == "":
+            product_name = cls._extract_field(detail_commodity, "name", "commodityName")
+
+        template_id = cls._extract_field(product_detail, "commodityTemplateId", "templateId")
+        if template_id == "":
+            template_id = cls._extract_field(order, "commodityTemplateId", "templateId")
+        if template_id == "":
+            template_id = cls._extract_field(detail_commodity, "templateId", "commodityTemplateId")
+
+        price = cls._extract_field(order, "totalAmount", "commodityAmount", "paymentAmount")
+        if price == "":
+            price = cls._extract_field(product_detail, "price")
+        if price == "":
+            price = cls._extract_field(detail_commodity, "price")
+        if price == "":
+            revenue = detail.get("revenue")
+            if isinstance(revenue, dict):
+                price = cls._extract_field(revenue, "amount")
+
+        raw_time = cls._extract_field(order, "createOrderTime", "finishOrderTime", "paySuccessTime")
+        if raw_time == "":
+            raw_time = cls._extract_field(detail, "orderCreatedTime", "createOrderTime", "finishOrderTime")
+
+        buyer_nickname = cls._extract_field(
+            order,
+            "buyerUserName",
+            "buyerNickname",
+            "buyerNickName",
+            "buyerName",
+        )
+        seller_nickname = cls._extract_field(
+            order,
+            "sellerUserName",
+            "sellerNickname",
+            "sellerNickName",
+            "sellerName",
+        )
+        buyer = detail.get("buyer")
+        seller = detail.get("seller")
+        if buyer_nickname == "" and isinstance(buyer, dict):
+            buyer_nickname = cls._extract_field(buyer, "name", "userName", "nickName", "steamName")
+        if seller_nickname == "" and isinstance(seller, dict):
+            seller_nickname = cls._extract_field(seller, "name", "userName", "nickName", "steamName")
+
+        return {
+            "product_detail": product_detail,
+            "product_name": product_name,
+            "template_id": template_id,
+            "price": price,
+            "raw_time": raw_time,
+            "buyer_nickname": buyer_nickname,
+            "seller_nickname": seller_nickname,
+            "trade_offer_id": cls._extract_field(order, "tradeOfferId")
+            or cls._extract_field(detail, "tradeOfferId"),
+        }
+
+    @staticmethod
     def _extract_quantity(order: Dict, product_detail: Dict) -> int:
         """提取成交数量，默认 1"""
         candidates = [
@@ -436,35 +518,27 @@ class BillExporter:
         headers = [
             "订单类型", "订单号", "商品名称", "商品模板ID",
             "订单状态", "成交数量", "成交价格(分)", "成交时间",
-            "Steam报价ID",
+            "买家昵称", "卖家昵称", "Steam报价ID",
         ]
 
         rows = []
         for order_type, orders in data.items():
             for order in orders:
-                product_detail = order.get("productDetail") or order.get("commodity") or {}
-                # 价格: totalAmount > commodityAmount > paymentAmount > productDetail.price
-                price = (
-                    self._extract_field(order, "totalAmount", "commodityAmount", "paymentAmount")
-                    or self._extract_field(product_detail, "price")
-                )
-                # 时间: createOrderTime > finishOrderTime > paySuccessTime
-                raw_time = (
-                    self._extract_field(order, "createOrderTime", "finishOrderTime", "paySuccessTime")
-                )
-                # Steam报价ID: tradeOfferId
-                trade_offer_id = order.get("tradeOfferId") or ""
+                compact = self._compact_order_values(order)
+                product_detail = compact["product_detail"]
 
                 rows.append({
                     "订单类型": "卖出" if order_type == "sell" else "买入" if order_type == "buy" else order.get("_lease_type", "租赁"),
                     "订单号": order.get("orderNo") or order.get("id") or order.get("orderId") or "",
-                    "商品名称": product_detail.get("commodityName") or order.get("commodityName") or "",
-                    "商品模板ID": product_detail.get("commodityTemplateId") or "",
+                    "商品名称": compact["product_name"],
+                    "商品模板ID": compact["template_id"],
                     "订单状态": order.get("orderStatusName") or str(order.get("orderStatus") or ""),
                     "成交数量": self._extract_quantity(order, product_detail),
-                    "成交价格(分)": price,
-                    "成交时间": self._format_timestamp(raw_time),
-                    "Steam报价ID": trade_offer_id,
+                    "成交价格(分)": compact["price"],
+                    "成交时间": self._format_timestamp(compact["raw_time"]),
+                    "买家昵称": compact["buyer_nickname"],
+                    "卖家昵称": compact["seller_nickname"],
+                    "Steam报价ID": compact["trade_offer_id"],
                 })
 
         with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
@@ -501,7 +575,7 @@ class BillExporter:
             else:
                 headers = [
                     "订单号", "商品名称", "订单状态", "成交数量", "成交价格(分)",
-                    "成交时间", "Steam报价ID",
+                    "成交时间", "Steam报价ID", "买家昵称", "卖家昵称",
                 ]
 
             rows = []
@@ -521,24 +595,19 @@ class BillExporter:
                         ),
                     })
                 else:
-                    product_detail = order.get("productDetail") or order.get("commodity") or {}
-                    price = (
-                        self._extract_field(order, "totalAmount", "commodityAmount", "paymentAmount")
-                        or self._extract_field(product_detail, "price")
-                    )
-                    raw_time = (
-                        self._extract_field(order, "createOrderTime", "finishOrderTime", "paySuccessTime")
-                    )
-                    trade_offer_id = order.get("tradeOfferId") or ""
+                    compact = self._compact_order_values(order)
+                    product_detail = compact["product_detail"]
 
                     rows.append({
                         "订单号": order.get("orderNo") or order.get("id") or order.get("orderId") or "",
-                        "商品名称": product_detail.get("commodityName") or order.get("commodityName") or "",
+                        "商品名称": compact["product_name"],
                         "订单状态": order.get("orderStatusName") or str(order.get("orderStatus") or ""),
                         "成交数量": self._extract_quantity(order, product_detail),
-                        "成交价格(分)": price,
-                        "成交时间": self._format_timestamp(raw_time),
-                        "Steam报价ID": trade_offer_id,
+                        "成交价格(分)": compact["price"],
+                        "成交时间": self._format_timestamp(compact["raw_time"]),
+                        "Steam报价ID": compact["trade_offer_id"],
+                        "买家昵称": compact["buyer_nickname"],
+                        "卖家昵称": compact["seller_nickname"],
                     })
 
             with open(filepath, "w", encoding="utf-8-sig", newline="") as f:

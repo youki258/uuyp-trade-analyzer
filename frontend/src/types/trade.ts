@@ -48,6 +48,7 @@ export interface TradeRecord {
   tradeTimeStr: string;
   buyerNickname: string;
   sellerNickname: string;
+  tradeOfferId?: string;
   category: CommodityCategory;
 }
 

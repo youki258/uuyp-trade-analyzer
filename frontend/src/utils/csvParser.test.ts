@@ -6,14 +6,14 @@ function makeCsvFile(content: string, name = "test.csv"): File {
   return new File([content], name, { type: "text/csv" });
 }
 
-const COMBINED_HEADER = "订单类型,订单号,商品名称,商品模板ID,订单状态,成交数量,成交价格(分),成交时间,Steam报价ID";
+const COMBINED_HEADER = "订单类型,订单号,商品名称,商品模板ID,订单状态,成交数量,成交价格(分),成交时间,买家昵称,卖家昵称,Steam报价ID";
 
 describe("parseCsvFile", () => {
   it("正常解析合并账单：买卖方向、价格单位(分)与时间", async () => {
     const csv = [
       COMBINED_HEADER,
-      "买入,B001,AK-47 | 红线 (久经沙场),1001,已完成,1,12345,2026-01-01 10:00:00,",
-      "卖出,S001,AK-47 | 红线 (久经沙场),1001,已完成,1,15000,2026-02-01 12:00:00,",
+      "买入,B001,AK-47 | 红线 (久经沙场),1001,已完成,1,12345,2026-01-01 10:00:00,buyer,seller,offer-1",
+      "卖出,S001,AK-47 | 红线 (久经沙场),1001,已完成,1,15000,2026-02-01 12:00:00,buyer,seller,offer-2",
     ].join("\n");
 
     const result = await parseCsvFile(makeCsvFile(csv), "combined");
@@ -25,6 +25,9 @@ describe("parseCsvFile", () => {
     const buy = result.records.find((r) => r.type === "buy")!;
     expect(buy.priceFen).toBe(12345);
     expect(buy.priceYuan).toBeCloseTo(123.45);
+    expect(buy.tradeOfferId).toBe("offer-1");
+    expect(buy.buyerNickname).toBe("buyer");
+    expect(buy.sellerNickname).toBe("seller");
     expect(buy.tradeTime.getFullYear()).toBe(2026);
     expect(result.dateRange.start!.getTime()).toBeLessThan(result.dateRange.end!.getTime());
   });
@@ -32,7 +35,7 @@ describe("parseCsvFile", () => {
   it("0 元价格订单不被丢弃", async () => {
     const csv = [
       COMBINED_HEADER,
-      "买入,B001,免费赠品,1001,已完成,1,0,2026-01-01 10:00:00,",
+      "买入,B001,免费赠品,1001,已完成,1,0,2026-01-01 10:00:00,,,",
     ].join("\n");
 
     const result = await parseCsvFile(makeCsvFile(csv), "combined");
@@ -44,8 +47,8 @@ describe("parseCsvFile", () => {
   it("无效成交时间的行被跳过并计入 skippedCount", async () => {
     const csv = [
       COMBINED_HEADER,
-      "买入,B001,AK-47 | 红线,1001,已完成,1,10000,not-a-date,",
-      "卖出,S001,AK-47 | 红线,1001,已完成,1,15000,2026-02-01 12:00:00,",
+      "买入,B001,AK-47 | 红线,1001,已完成,1,10000,not-a-date,,,",
+      "卖出,S001,AK-47 | 红线,1001,已完成,1,15000,2026-02-01 12:00:00,,,",
     ].join("\n");
 
     const result = await parseCsvFile(makeCsvFile(csv), "combined");
@@ -58,7 +61,7 @@ describe("parseCsvFile", () => {
   it("多数量订单按数量拆分且总金额守恒", async () => {
     const csv = [
       COMBINED_HEADER,
-      "买入,B001,武器箱,1001,已完成,3,10001,2026-01-01 10:00:00,",
+      "买入,B001,武器箱,1001,已完成,3,10001,2026-01-01 10:00:00,,,",
     ].join("\n");
 
     const result = await parseCsvFile(makeCsvFile(csv), "combined");

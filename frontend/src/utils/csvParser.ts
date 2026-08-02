@@ -150,6 +150,7 @@ export function parseCsvFile(
             const direction = findFieldValue(row, ["交易方向", "方向", "订单类型", "类型"]);
             const buyerNickname = findFieldValue(row, ["买家昵称", "买家"]);
             const sellerNickname = findFieldValue(row, ["卖家昵称", "卖家"]);
+            const tradeOfferId = findFieldValue(row, ["Steam报价ID", "tradeOfferId"]);
 
             const quantity = parseQuantity(quantityStr);
             const totalPriceFen = parsePrice(priceStr, priceHeaderIsFen);
@@ -188,6 +189,7 @@ export function parseCsvFile(
                 tradeTimeStr: timeStr,
                 buyerNickname,
                 sellerNickname,
+                tradeOfferId,
                 category: identifyCategory(commodityName),
               });
             });

@@ -15,6 +15,7 @@ const record: TradeRecord = {
   tradeTimeStr: "2026-01-01",
   buyerNickname: "buyer-secret",
   sellerNickname: "seller-secret",
+  tradeOfferId: "offer-1",
   category: "weapon_skin",
 };
 
@@ -53,6 +54,8 @@ describe("buildAnalysisExportCsv", () => {
     expect(csv).toContain("卖家昵称");
     expect(csv).toContain("buyer-secret");
     expect(csv).toContain("seller-secret");
+    expect(csv).toContain("Steam报价ID");
+    expect(csv).toContain("offer-1");
     expect(csv).toContain("商品名称");
   });
 });

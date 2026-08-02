@@ -30,17 +30,32 @@ class OneTimeDownloadTicketStore:
             self._items[token] = ticket
         return token
 
-    def consume(self, token: str, session_id: str) -> str | None:
+    def peek(self, token: str, session_id: str | None = None) -> DownloadTicket | None:
         now = time.time()
         with self._lock:
-            ticket = self._items.pop(token, None)
+            ticket = self._items.get(token)
             if not ticket:
                 return None
             if ticket.expires_at <= now:
+                self._items.pop(token, None)
                 return None
-            if ticket.session_id != session_id:
+            if session_id and ticket.session_id != session_id:
                 return None
-            return ticket.filename
+            return ticket
+
+    def consume(self, token: str, session_id: str | None = None) -> DownloadTicket | None:
+        now = time.time()
+        with self._lock:
+            ticket = self._items.get(token)
+            if not ticket:
+                return None
+            if ticket.expires_at <= now:
+                self._items.pop(token, None)
+                return None
+            if session_id and ticket.session_id != session_id:
+                return None
+            self._items.pop(token, None)
+            return ticket
 
     def invalidate_session(self, session_id: str | None) -> None:
         if not session_id:
