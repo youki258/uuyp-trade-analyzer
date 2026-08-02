@@ -45,14 +45,34 @@ start_container() {
     "$image_to_start" >/dev/null
 }
 
+rollback() {
+  if [[ -z "$previous_image" ]]; then
+    echo "no previous image available for rollback" >&2
+    return 1
+  fi
+
+  echo "rolling back to $previous_image" >&2
+  if ! start_container "$previous_image"; then
+    echo "rollback container failed to start" >&2
+    return 1
+  fi
+  if wait_for_health; then
+    echo "rollback healthy: $previous_image" >&2
+    return 0
+  fi
+
+  echo "rollback failed health check" >&2
+  docker logs --tail 100 "$container_name" >&2 || true
+  docker rm --force "$container_name" >/dev/null 2>&1 || true
+  return 1
+}
+
 echo "pulling $image"
 docker pull "$image" >/dev/null
 
 echo "replacing $container_name"
 docker rm --force "$container_name" >/dev/null 2>&1 || true
-start_container "$image"
-
-if wait_for_health; then
+if start_container "$image" && wait_for_health; then
   echo "deployment healthy: $image"
   exit 0
 fi
@@ -61,18 +81,5 @@ echo "new deployment failed health check" >&2
 docker logs --tail 100 "$container_name" >&2 || true
 docker rm --force "$container_name" >/dev/null 2>&1 || true
 
-if [[ -z "$previous_image" ]]; then
-  echo "no previous image available for rollback" >&2
-  exit 1
-fi
-
-echo "rolling back to $previous_image" >&2
-start_container "$previous_image"
-if wait_for_health; then
-  echo "rollback healthy: $previous_image" >&2
-else
-  echo "rollback failed health check" >&2
-  docker logs --tail 100 "$container_name" >&2 || true
-  docker rm --force "$container_name" >/dev/null 2>&1 || true
-fi
+rollback || true
 exit 1
