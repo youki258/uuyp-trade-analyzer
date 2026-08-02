@@ -1,5 +1,7 @@
 # 自动部署说明
 
+第一次配置或迁移到另一台 VPS，请先阅读 [Windows 完整教程](github-actions-vps-deployment-guide.md)。
+
 ## 发布链路
 
 合并或推送到 `main` 后，`.github/workflows/deploy.yml` 按以下顺序执行：
