@@ -1,5 +1,6 @@
 import time
 from dataclasses import dataclass
+from math import ceil
 from threading import Lock
 
 # 每隔多少次请求触发一次过期键清理
@@ -44,6 +45,17 @@ class InMemoryRateLimiter:
                 }
 
             return True
+
+    def retry_after_seconds(self, key: str, rule: RateLimitRule) -> int:
+        """Return the remaining window in seconds for a currently limited key."""
+        now = time.time()
+        threshold = now - rule.window_seconds
+
+        with self._lock:
+            entries = [ts for ts in self._store.get(key, []) if ts > threshold]
+            if len(entries) < rule.max_requests:
+                return 0
+            return max(0, ceil(entries[0] + rule.window_seconds - now))
 
     def cleanup(self, max_age_seconds: float = _DEFAULT_MAX_AGE) -> None:
         """显式清理过期键

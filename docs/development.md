@@ -41,7 +41,7 @@ cd frontend && npm run build    # 构建前端到 ../static/
 cd backend && uv run python app.py  # 后端同时托管前端静态文件
 ```
 
-开发模式下后端使用 Flask 内置服务器（单线程），生产模式使用 gunicorn（4 worker）。
+开发模式下后端使用 Flask 内置服务器（单线程），生产模式使用 gunicorn（1 worker）。会话、限流和临时票据当前保存在进程内内存，不能使用多 worker。
 
 ### 环境变量
 

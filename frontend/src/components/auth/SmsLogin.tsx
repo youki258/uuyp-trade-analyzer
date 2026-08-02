@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sendSmsCode, verifySmsCode } from "@/utils/statelessApi";
@@ -24,6 +24,16 @@ export function SmsLogin({
   const [smsUpContent, setSmsUpContent] = useState("");
   const [smsUpNumber, setSmsUpNumber] = useState("");
   const [loading, setLoading] = useState(false);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+
+  useEffect(() => {
+    if (retryAfterSeconds <= 0) return;
+    const timer = window.setTimeout(
+      () => setRetryAfterSeconds((value) => Math.max(0, value - 1)),
+      1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [retryAfterSeconds]);
 
   async function handleSend() {
     const phoneTrim = phone.trim();
@@ -40,6 +50,7 @@ export function SmsLogin({
     try {
       const result = await sendSmsCode(phoneTrim);
       if (result.status === "ok") {
+        setRetryAfterSeconds(0);
         const manual = result.requiresManualSms === true;
         setManualMode(manual);
         setSmsUpContent(result.smsUpContent || "");
@@ -50,11 +61,15 @@ export function SmsLogin({
             : "验证码已发送",
         );
       } else {
+        const retryAfter = result.retryAfterSeconds || 0;
+        setRetryAfterSeconds(retryAfter);
         setManualMode(false);
         setMessage(
-          result.hint === "manual_or_token"
-            ? `${result.message || "发送失败"}（可改用 Token 登录）`
-            : result.message || "发送失败",
+          retryAfter > 0
+            ? ""
+            : result.hint === "manual_or_token"
+              ? `${result.message || "发送失败"}（可改用 Token 登录）`
+              : result.message || "发送失败",
         );
       }
     } catch {
@@ -79,6 +94,7 @@ export function SmsLogin({
     try {
       const result = await verifySmsCode(phoneTrim, code.trim());
       if (result.status === "ok") {
+        setRetryAfterSeconds(0);
         setPhone("");
         setCode("");
         setManualMode(false);
@@ -88,7 +104,9 @@ export function SmsLogin({
         await onRefreshState();
         await onRefreshFiles();
       } else {
-        setMessage(result.message || "验证失败");
+        const retryAfter = result.retryAfterSeconds || 0;
+        setRetryAfterSeconds(retryAfter);
+        setMessage(retryAfter > 0 ? "" : result.message || "验证失败");
       }
     } catch {
       setMessage("网络错误，请重试");
@@ -113,7 +131,7 @@ export function SmsLogin({
         />
         <Button
           onClick={handleSend}
-          disabled={isBusy || loading}
+          disabled={isBusy || loading || retryAfterSeconds > 0}
           variant="outline"
           className="shrink-0"
         >
@@ -129,7 +147,7 @@ export function SmsLogin({
       />
       <Button
         onClick={handleVerify}
-        disabled={isBusy || loading}
+        disabled={isBusy || loading || retryAfterSeconds > 0}
         className="w-full"
       >
         验证码登录
@@ -154,7 +172,12 @@ export function SmsLogin({
           </ol>
         </div>
       )}
-      {message && (
+      {retryAfterSeconds > 0 && (
+        <p className="text-sm text-amber-300">
+          请求过于频繁，请 {retryAfterSeconds} 秒后重试
+        </p>
+      )}
+      {retryAfterSeconds <= 0 && message && (
         <p className="text-sm text-primary">{message}</p>
       )}
     </div>

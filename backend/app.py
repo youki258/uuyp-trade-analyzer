@@ -5,8 +5,8 @@
   python app.py                  # 端口 8765
   python app.py --port 8080      # 指定端口
 
-生产模式 (gunicorn):
-  gunicorn -w 4 -b 0.0.0.0:8765 --timeout 300 app:app
+生产模式 (gunicorn，当前会话/限流为进程内内存，使用单 worker):
+  gunicorn -w 1 -b 0.0.0.0:8765 --timeout 300 app:app
 """
 import argparse
 import logging

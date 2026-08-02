@@ -38,4 +38,4 @@ EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/status')" || exit 1
 
-CMD [".venv/bin/gunicorn", "-w", "4", "-b", "0.0.0.0:8765", "--timeout", "300", "backend.app:app"]
+CMD [".venv/bin/gunicorn", "-w", "1", "-b", "0.0.0.0:8765", "--timeout", "300", "backend.app:app"]

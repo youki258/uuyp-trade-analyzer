@@ -25,6 +25,7 @@ export interface ApiResult {
   message?: string;
   code?: number | string;
   detail?: string;
+  retryAfterSeconds?: number;
 }
 
 export interface FetchStartResult extends ApiResult {

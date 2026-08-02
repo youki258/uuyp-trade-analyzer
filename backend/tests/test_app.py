@@ -124,3 +124,71 @@ def test_http_errors_use_structured_json(app):
     assert payload["code"] == 404
     assert payload["message"]
     assert payload["detail"] == payload["message"]
+
+
+def test_rate_limited_response_includes_retry_after(app):
+    client = app.test_client()
+    request_payload = {"token": "too-short"}
+
+    for _ in range(8):
+        response = client.post(
+            "/api/auth/token",
+            json=request_payload,
+            headers={"Origin": ORIGIN},
+        )
+        assert response.status_code == 400
+
+    limited = client.post(
+        "/api/auth/token",
+        json=request_payload,
+        headers={"Origin": ORIGIN},
+    )
+    assert limited.status_code == 429
+    payload = limited.get_json()
+    assert payload["code"] == "rate_limited"
+    assert payload["retryAfterSeconds"] >= 1
+    assert int(limited.headers["Retry-After"]) == payload["retryAfterSeconds"]
+
+
+def test_sms_local_validation_does_not_consume_verification_limit(app):
+    client = app.test_client()
+
+    for _ in range(7):
+        invalid = client.post(
+            "/api/auth/sms/verify",
+            json={"phone": "not-a-phone", "code": ""},
+            headers={"Origin": ORIGIN},
+        )
+        assert invalid.status_code == 400
+        assert invalid.get_json()["code"] == "invalid_phone_format"
+
+    mock_class = MagicMock()
+    mock_class.send_sms_code.return_value = (
+        {"Code": 5050, "Msg": "请发送上行短信"},
+        {"deviceId": "device-1"},
+        {"deviceid": "device-1"},
+    )
+    mock_class.get_sms_up_sign_in_config.return_value = {
+        "Code": 0,
+        "Data": {"SmsUpContent": "短信验证", "SmsUpNumber": "106"},
+    }
+    mock_class.sms_sign_in.return_value = {"Code": 0, "Data": {"Token": "sms-token"}}
+    mock_class.return_value = MagicMock(nickname="tester", user_id="user-1")
+
+    with patch("exporter.client.UUYPClient", mock_class):
+        sent = client.post(
+            "/api/auth/sms/send",
+            json={"phone": "13800000000"},
+            headers={"Origin": ORIGIN},
+        )
+        assert sent.status_code == 200
+        assert sent.get_json()["requiresManualSms"] is True
+
+        verified = client.post(
+            "/api/auth/sms/verify",
+            json={"phone": "13800000000", "code": ""},
+            headers={"Origin": ORIGIN},
+        )
+
+    assert verified.status_code == 200
+    assert verified.get_json()["auth"]["authenticated"] is True

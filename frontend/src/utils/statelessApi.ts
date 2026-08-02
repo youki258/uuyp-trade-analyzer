@@ -7,6 +7,7 @@ import type {
   ServerFile,
   SessionInfo,
 } from "@/types/stateless";
+import { parseRetryAfterSeconds } from "./retryAfter";
 
 function isServerFile(value: unknown): value is ServerFile {
   if (!value || typeof value !== "object") return false;
@@ -172,6 +173,7 @@ export async function sendSmsCode(
       message: payload?.message || "短信发送失败",
       code: payload?.code,
       hint: payload?.hint,
+      retryAfterSeconds: parseRetryAfterSeconds(res, payload),
     };
   }
   return {
@@ -200,6 +202,7 @@ export async function verifySmsCode(
       status: "error",
       message: payload?.message || "短信验证失败",
       code: payload?.code,
+      retryAfterSeconds: parseRetryAfterSeconds(res, payload),
     };
   }
   return { status: "ok", message: payload?.message };

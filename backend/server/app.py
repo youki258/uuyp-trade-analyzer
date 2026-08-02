@@ -234,7 +234,15 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     def _check_rate_limit(action: str, rule: RateLimitRule, include_session: bool = False):
         key = _rate_limit_key(action, include_session=include_session)
         if not rate_limiter.allow(key, rule):
-            return _error_response("too many requests", 429, code="rate_limited")
+            retry_after = max(1, rate_limiter.retry_after_seconds(key, rule))
+            response, status_code = _error_response(
+                "too many requests",
+                429,
+                code="rate_limited",
+                retryAfterSeconds=retry_after,
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response, status_code
         return None
 
     def _check_rate_limit_both(action: str, ip_rule: RateLimitRule, session_rule: RateLimitRule):
@@ -385,14 +393,6 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
     @app.route("/api/auth/sms/send", methods=["POST"])
     def auth_sms_send():
-        limited = _check_rate_limit_both(
-            "auth_sms_send",
-            RateLimitRule(max_requests=3, window_seconds=300),
-            RateLimitRule(max_requests=2, window_seconds=300),
-        )
-        if limited:
-            return limited
-
         ok, reason = _check_same_origin()
         if not ok:
             return _error_response(reason, 403, code="invalid_origin")
@@ -410,6 +410,14 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             region_code = int(region_code)
         except (TypeError, ValueError):
             region_code = 86
+
+        limited = _check_rate_limit_both(
+            "auth_sms_send",
+            RateLimitRule(max_requests=3, window_seconds=300),
+            RateLimitRule(max_requests=2, window_seconds=300),
+        )
+        if limited:
+            return limited
 
         try:
             from exporter.client import UUYPClient
@@ -466,14 +474,6 @@ def create_stateless_app(dist_dir: Path) -> Flask:
 
     @app.route("/api/auth/sms/verify", methods=["POST"])
     def auth_sms_verify():
-        limited = _check_rate_limit_both(
-            "auth_sms_verify",
-            RateLimitRule(max_requests=10, window_seconds=300),
-            RateLimitRule(max_requests=6, window_seconds=300),
-        )
-        if limited:
-            return limited
-
         ok, reason = _check_same_origin()
         if not ok:
             return _error_response(reason, 403, code="invalid_origin")
@@ -493,6 +493,14 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             return _error_response("sms session not initialized", 400, code="sms_session_missing")
         if phone and phone != ctx_phone:
             return _error_response("phone mismatch", 400, code="phone_mismatch")
+
+        limited = _check_rate_limit_both(
+            "auth_sms_verify",
+            RateLimitRule(max_requests=10, window_seconds=300),
+            RateLimitRule(max_requests=6, window_seconds=300),
+        )
+        if limited:
+            return limited
 
         try:
             from exporter.client import UUYPClient

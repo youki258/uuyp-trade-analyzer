@@ -22,6 +22,22 @@ def test_blocks_over_limit():
     assert limiter.allow("key1", rule) is False
 
 
+def test_retry_after_reports_seconds_until_oldest_request_expires(monkeypatch):
+    """超限时应能返回窗口剩余秒数，供 HTTP Retry-After 使用。"""
+    limiter = InMemoryRateLimiter()
+    rule = RateLimitRule(max_requests=1, window_seconds=60)
+    now = [1000.0]
+    monkeypatch.setattr("server.rate_limit.time.time", lambda: now[0])
+
+    assert limiter.allow("key1", rule) is True
+    now[0] = 1002.0
+    assert limiter.allow("key1", rule) is False
+    assert limiter.retry_after_seconds("key1", rule) == 58
+
+    now[0] = 1060.1
+    assert limiter.retry_after_seconds("key1", rule) == 0
+
+
 def test_different_keys_independent():
     """不同 key 独立计数"""
     limiter = InMemoryRateLimiter()
