@@ -189,6 +189,8 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     @app.errorhandler(Exception)
     def handle_unexpected_error(error: Exception):
         logger.exception("[server] unexpected request error: %s", error)
+        if request.path == "/healthz":
+            _audit("healthcheck.failed", reason="internal_error")
         return jsonify(
             {
                 "status": "error",
