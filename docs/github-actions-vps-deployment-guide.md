@@ -94,7 +94,7 @@ VPS 不需要安装 Git，也不需要保存项目源代码。Actions 构建镜�
 - 容器名：uuyp
 - 容器重启策略：always
 - 宿主机绑定：127.0.0.1:8765
-- 容器健康地址：http://127.0.0.1:8765/api/status
+- 容器健康地址：http://127.0.0.1:8765/healthz
 
 公网访问由 Caddy 或其他反向代理转发到宿主机的 127.0.0.1:8765。不要为了让 Actions 访问而把应用端口直接暴露到公网。
 
@@ -169,7 +169,7 @@ PowerShell 示例：
     $hostName = "<VPS_HOST>"
     $port = "<VPS_PORT>"
     $user = "<VPS_USER>"
-    $healthUrl = "https://<your-domain>/api/status"
+    $healthUrl = "https://<your-domain>/healthz"
     $keyPath = "$env:USERPROFILE/.ssh/uuyp_actions_deploy"
 
     gh secret set VPS_HOST --repo $repo --body $hostName
@@ -255,8 +255,8 @@ workflow 还配置了 concurrency。同一时间只运行一个生产部署任�
 2. 读取当前 uuyp 容器使用的旧镜像。
 3. docker pull 新镜像。
 4. 删除旧 uuyp 容器并用固定端口、重启策略重新创建。
-5. 轮询本地 /api/status，最多等待 30 次。
-6. 健康检查成功就完成部署。
+5. 轮询本地 /healthz、首页、首页引用的真实 JS/CSS 资源，并确认已知扫描路径返回 404，最多等待 30 次。
+6. 以上检查全部成功就完成部署。
 7. 创建失败或健康检查失败时，打印新容器日志。
 8. 删除失败容器并恢复旧镜像。
 9. 再次检查回滚容器；回滚也失败时让 Actions 明确失败。
@@ -291,11 +291,12 @@ workflow 还配置了 concurrency。同一时间只运行一个生产部署任�
 
 检查应用：
 
-    curl --fail --silent --show-error http://127.0.0.1:8765/api/status
+    curl --fail --silent --show-error http://127.0.0.1:8765/healthz
+    curl --fail --silent --show-error http://127.0.0.1:8765/
 
 从 VPS 检查公网入口：
 
-    curl --fail --silent --show-error https://<your-domain>/api/status
+    curl --fail --silent --show-error https://<your-domain>/healthz
 
 成功时应看到包含 status 为 ok 的 JSON。只看到 GitHub 页面绿色还不够，至少要确认容器实际镜像、VPS 本地接口和公网接口。
 
@@ -308,7 +309,7 @@ workflow 还配置了 concurrency。同一时间只运行一个生产部署任�
 | Permission denied publickey | 公钥没有写入正确用户，或私钥粘贴不完整 | 用同一私钥在本地执行 ssh 测试 |
 | Host key verification failed | VPS_KNOWN_HOSTS 过期或端口错误 | 重新核对主机指纹和 SSH 端口 |
 | docker pull denied | GHCR package 是私有的或镜像名错误 | 先在 VPS 手动确认镜像权限 |
-| 新容器启动后回滚 | 应用没有监听 8765、环境缺失或 /api/status 不健康 | 查看 docker logs uuyp |
+| 新容器启动后回滚 | 应用没有监听 8765、静态构建缺失、健康接口或真实资源不健康 | 查看 docker logs uuyp |
 | Actions runner 访问公网失败 | runner 到目标站点的网络或 TLS 路径不稳定 | 当前实现改为通过 SSH 让 VPS 自己 curl 公网地址 |
 | 多次提交同时部署 | 前一次仍在运行 | 查看 concurrency，等待上一任务完成 |
 
@@ -350,7 +351,7 @@ workflow 还配置了 concurrency。同一时间只运行一个生产部署任�
 - [ ] workflow 只在预期的 main 更新时部署。
 - [ ] Actions 测试、审计、镜像扫描和部署全部成功。
 - [ ] VPS 运行的是完整提交 SHA 对应的镜像。
-- [ ] /api/status 的本地和公网检查都成功。
+- [ ] /healthz、首页、真实静态资源和扫描路径 404 的本地检查都成功。
 - [ ] 失败部署时能看到回滚结果。
 - [ ] 没有任何 Token、私钥或 Secret 出现在仓库和日志中。
 

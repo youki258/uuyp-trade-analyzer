@@ -10,6 +10,7 @@ class SessionRecord:
     session_id: str
     created_at: float
     expires_at: float
+    client_ip: str
     data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -20,26 +21,36 @@ class InMemorySessionStore:
         self._items: dict[str, SessionRecord] = {}
         self._lock = Lock()
 
-    def create(self) -> SessionRecord | None:
+    def create(
+        self,
+        client_ip: str,
+        *,
+        max_sessions_per_ip: int,
+    ) -> tuple[SessionRecord | None, str | None]:
         now = time.time()
+        normalized_ip = client_ip or "unknown"
         record = SessionRecord(
             session_id=uuid.uuid4().hex,
             created_at=now,
             expires_at=now + self._ttl,
+            client_ip=normalized_ip,
             data={},
         )
         with self._lock:
-            if len(self._items) >= self._max_sessions:
-                # 尝试先回收过期会话，避免会话数无限增长。
-                for session_id in list(self._items.keys()):
-                    if self._items[session_id].expires_at <= now:
-                        self._items.pop(session_id, None)
+            # 在同一把锁内清理、检查全局容量和单 IP 容量，避免并发请求绕过准入限制。
+            for session_id in list(self._items.keys()):
+                if self._items[session_id].expires_at <= now:
+                    self._items.pop(session_id, None)
 
             if len(self._items) >= self._max_sessions:
-                return None
+                return None, "global_limit"
+
+            ip_count = sum(item.client_ip == normalized_ip for item in self._items.values())
+            if ip_count >= max_sessions_per_ip:
+                return None, "ip_limit"
 
             self._items[record.session_id] = record
-        return record
+        return record, None
 
     def get(self, session_id: str | None) -> SessionRecord | None:
         if not session_id:
