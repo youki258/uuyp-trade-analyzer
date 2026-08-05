@@ -7,6 +7,7 @@ class StatelessConfig:
     session_cookie_name: str
     session_ttl_seconds: int
     max_sessions: int
+    max_sessions_per_ip: int
     cleanup_interval_seconds: int
     artifact_ttl_seconds: int
     cookie_secure: bool
@@ -38,6 +39,13 @@ def load_config() -> StatelessConfig:
         max_sessions = 100
     max_sessions = max(100, max_sessions)
 
+    max_sessions_per_ip_raw = os.getenv("UUYP_SESSION_MAX_PER_IP", "3").strip()
+    try:
+        max_sessions_per_ip = int(max_sessions_per_ip_raw)
+    except ValueError:
+        max_sessions_per_ip = 3
+    max_sessions_per_ip = max(1, max_sessions_per_ip)
+
     cleanup_raw = os.getenv("UUYP_CLEANUP_INTERVAL_SECONDS", "300").strip()
     try:
         cleanup_interval = int(cleanup_raw)
@@ -64,6 +72,7 @@ def load_config() -> StatelessConfig:
         session_cookie_name=cookie_name,
         session_ttl_seconds=ttl,
         max_sessions=max_sessions,
+        max_sessions_per_ip=max_sessions_per_ip,
         cleanup_interval_seconds=cleanup_interval,
         artifact_ttl_seconds=artifact_ttl,
         cookie_secure=secure,

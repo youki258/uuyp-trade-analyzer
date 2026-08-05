@@ -160,7 +160,14 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     artifacts = SessionArtifactStore()
     tickets = OneTimeDownloadTicketStore()
     token_reveal_lock = threading.Lock()
+    session_rejection_counts = {"ip_limit": 0, "global_limit": 0}
+    session_rejection_lock = threading.Lock()
     last_cleanup_at = 0.0
+
+    # 提供测试与本地运维检查句柄，不改变对外 API；会话内容仍只保存在当前进程内存。
+    app.extensions["uuyp_session_store"] = sessions
+    app.extensions["uuyp_config"] = cfg
+    app.extensions["uuyp_session_rejection_counts"] = session_rejection_counts
 
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SECURE"] = cfg.cookie_secure
@@ -182,6 +189,8 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     @app.errorhandler(Exception)
     def handle_unexpected_error(error: Exception):
         logger.exception("[server] unexpected request error: %s", error)
+        if request.path == "/healthz":
+            _audit("healthcheck.failed", reason="internal_error")
         return jsonify(
             {
                 "status": "error",
@@ -214,11 +223,56 @@ def create_stateless_app(dist_dir: Path) -> Flask:
             g._skip_session_cookie = True
             return
 
+        # 这些路由必须保持无副作用：健康检查、静态资源、状态探针和下载票据
+        # 都不应因为没有 Cookie 而创建新会话。
+        public_endpoints = {
+            "index",
+            "assets",
+            "static_files",
+            "healthz",
+            "api_status",
+            "consume_download_ticket",
+        }
+        if (
+            request.endpoint in public_endpoints
+            or request.endpoint is None
+            or not request.path.startswith("/api/")
+        ):
+            if request.endpoint == "api_status":
+                session_id = request.cookies.get(cfg.session_cookie_name)
+                record = sessions.touch(session_id) if session_id else None
+                g.session_id = record.session_id if record else None
+                g.session_record = record
+            else:
+                g.session_id = None
+                g.session_record = None
+            g._skip_session_cookie = True
+            return
+
         session_id = request.cookies.get(cfg.session_cookie_name)
         record = sessions.touch(session_id) if session_id else None
         if not record:
-            record = sessions.create()
+            client_ip = request.remote_addr or "unknown"
+            record, rejection_reason = sessions.create(
+                client_ip,
+                max_sessions_per_ip=cfg.max_sessions_per_ip,
+            )
             if not record:
+                with session_rejection_lock:
+                    session_rejection_counts[rejection_reason or "unknown"] = (
+                        session_rejection_counts.get(rejection_reason or "unknown", 0) + 1
+                    )
+                if rejection_reason == "ip_limit":
+                    _audit("session.create.rejected", reason="ip_limit", clientIp=client_ip)
+                    response, status_code = _error_response(
+                        "too many sessions from this IP",
+                        429,
+                        code="session_ip_limit",
+                    )
+                    response.headers["Retry-After"] = "60"
+                    return response, status_code
+
+                _audit("session.create.rejected", reason="global_limit", clientIp=client_ip)
                 return _error_response("server busy", 503, code="server_busy")
             g._set_session_cookie = record.session_id
 
@@ -278,6 +332,20 @@ def create_stateless_app(dist_dir: Path) -> Flask:
     def index():
         return send_from_directory(str(dist_dir), "index.html")
 
+    @app.route("/healthz")
+    def healthz():
+        index_path = dist_dir / "index.html"
+        if not index_path.is_file():
+            _audit("healthcheck.failed", reason="static_build_missing")
+            return _error_response(
+                "service unavailable",
+                503,
+                code="healthcheck_failed",
+                detail="static build is unavailable",
+                dist_exists=False,
+            )
+        return jsonify({"status": "ok", "dist_exists": True})
+
     @app.route("/assets/<path:filename>")
     def assets(filename: str):
         return send_from_directory(str(dist_dir / "assets"), filename)
@@ -287,18 +355,23 @@ def create_stateless_app(dist_dir: Path) -> Flask:
         target = dist_dir / filename
         if target.exists() and target.is_file():
             return send_from_directory(str(dist_dir), filename)
-        return send_from_directory(str(dist_dir), "index.html")
+        if request.path.startswith("/___proxy_subdomain_"):
+            _audit("scanner.path.hit", path=request.path[:128])
+        abort(404)
 
     @app.route("/api/status")
     def api_status():
-        remaining_ttl = max(0, int(g.session_record.expires_at - time.time()))
+        remaining_ttl = 0
+        session_exists = bool(g.session_record)
+        if g.session_record:
+            remaining_ttl = max(0, int(g.session_record.expires_at - time.time()))
         return jsonify(
             {
                 "status": "ok",
                 "mode": "stateless",
                 "dist_exists": dist_dir.exists(),
                 "session": {
-                    "exists": True,
+                    "exists": session_exists,
                     "ttlSeconds": remaining_ttl,
                 },
             }

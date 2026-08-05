@@ -6,6 +6,7 @@
 
 - [Docker 部署](#docker-部署)
 - [VPS 部署](#vps-部署)
+- [Caddy 反向代理与扫描拦截](#caddy-反向代理与扫描拦截)
 - [环境变量](#环境变量)
 - [Docker 镜像加速](#docker-镜像加速)
 - [监控与健康检查](#监控与健康检查)
@@ -77,7 +78,8 @@ docker run -d --restart=always --name uuyp -p 8765:8765 \
 
 # 5. 验证
 docker ps --filter name=uuyp
-curl http://127.0.0.1:8765/api/status
+curl http://127.0.0.1:8765/healthz
+curl http://127.0.0.1:8765/
 ```
 
 ### 生产配置（带 HTTPS 反向代理）
@@ -103,6 +105,30 @@ server {
 
 使用 HTTPS 时，确保 Docker 环境变量设 `UUYP_COOKIE_SECURE=true`（Dockerfile 默认已设）。
 
+### Caddy 反向代理与扫描拦截
+
+生产环境的 Caddy 配置位于 VPS 的 `/etc/caddy/Caddyfile`，不随仓库自动修改。将下面的规则放在 `reverse_proxy` 之前，只拦截已确认的扫描特征；应用层也会对未知路径返回 404，并且不会为它们创建会话。
+
+```caddyfile
+@uuyp_scanner path_regexp uuyp_scanner ^/___proxy_subdomain_(whm|cpanel)(/|$)
+respond @uuyp_scanner 404
+
+reverse_proxy 127.0.0.1:8765
+```
+
+修改前备份并验证：
+
+```bash
+sudo cp /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)"
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+curl --fail https://youpin.youki.me/healthz
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  https://youpin.youki.me/___proxy_subdomain_whm/login)" = 404
+```
+
+如果验证失败，恢复最近的备份后重新执行 `caddy validate` 和 `systemctl reload caddy`。不要为此引入未安装的 Caddy 限流插件；新会话的 IP 准入由应用负责。
+
 ---
 
 ## 环境变量
@@ -112,6 +138,7 @@ server {
 | `UUYP_SESSION_COOKIE_NAME` | `uuyp_sid` | 会话 Cookie 名称 |
 | `UUYP_SESSION_TTL_SECONDS` | `3600` | 会话保活时间（秒） |
 | `UUYP_SESSION_MAX_COUNT` | `100` | 最大并发会话数 |
+| `UUYP_SESSION_MAX_PER_IP` | `3` | 同一来源 IP 的最大并发新会话数；已有有效 Cookie 不受此新建限制影响 |
 | `UUYP_CLEANUP_INTERVAL_SECONDS` | `300` | 过期会话清理间隔（秒） |
 | `UUYP_ARTIFACT_TTL_SECONDS` | `1800` | 临时文件保留时间（秒） |
 | `UUYP_COOKIE_SECURE` | `true` | Cookie Secure 标志（HTTPS 时必须 true） |
@@ -121,7 +148,7 @@ server {
 
 ```bash
 docker run -d --name uuyp -p 8765:8765 \
-  -e UUYP_SESSION_MAX_COUNT=50 \
+  -e UUYP_SESSION_MAX_COUNT=200 \
   -e UUYP_SESSION_TTL_SECONDS=1800 \
   uuyp-trade-analyzer:latest
 ```
@@ -157,7 +184,7 @@ sudo systemctl restart docker
 
 ### Docker HEALTHCHECK
 
-Dockerfile 内置健康检查，每 30 秒请求 `/api/status`：
+Dockerfile 内置无 Cookie、无副作用的健康检查，每 30 秒请求 `/healthz`。它只确认应用可用且 `static/index.html` 存在，不会创建会话：
 
 ```bash
 # 查看健康状态
@@ -170,9 +197,17 @@ docker inspect --format='{{json .State.Health.Log}}' uuyp | python -m json.tool
 ### 手动检查
 
 ```bash
-# 服务状态
-curl http://127.0.0.1:8765/api/status
-# 预期: {"status":"ok","mode":"stateless",...}
+# 健康状态
+curl http://127.0.0.1:8765/healthz
+# 预期: {"status":"ok","dist_exists":true}
+
+# 首页与真实静态资源
+curl --fail http://127.0.0.1:8765/
+curl --fail http://127.0.0.1:8765/assets/<从首页 HTML 取得的资源名>
+
+# 已知扫描路径必须为 404
+curl --silent --output /dev/null --write-out '%{http_code}\n' \
+  http://127.0.0.1:8765/___proxy_subdomain_whm/login
 
 # 容器状态
 docker ps --filter name=uuyp --format '{{.Status}}'
@@ -293,8 +328,8 @@ docker logs uuyp --tail 30
 
 **排查步骤：**
 ```bash
-# 1. 进容器看应用是否运行
-docker exec uuyp curl http://127.0.0.1:8765/api/status
+# 1. 进容器看应用和静态构建是否完整
+docker exec uuyp python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8765/healthz').read().decode())"
 
 # 2. 查看健康检查日志
 docker inspect --format='{{json .State.Health.Log}}' uuyp
@@ -302,6 +337,8 @@ docker inspect --format='{{json .State.Health.Log}}' uuyp
 # 3. 查看应用日志
 docker logs uuyp --tail 50
 ```
+
+如果日志中出现 `session.create.rejected`，先区分 `ip_limit` 与 `global_limit`：前者表示同一来源 IP 的无 Cookie 新会话超过 3 个，后者表示全局会话达到 100 个。不要通过自动踢出活跃会话来“自愈”，否则可能丢失正在抓取或下载的临时文件。
 
 ### 磁盘空间不足
 

@@ -9,8 +9,9 @@ fi
 image="$1"
 container_name="${DEPLOY_CONTAINER_NAME:-uuyp}"
 host_port="${DEPLOY_HOST_PORT:-127.0.0.1:8765:8765}"
-health_url="${DEPLOY_HEALTH_URL:-http://127.0.0.1:8765/api/status}"
+health_url="${DEPLOY_HEALTH_URL:-http://127.0.0.1:8765/healthz}"
 health_attempts="${DEPLOY_HEALTH_ATTEMPTS:-30}"
+root_url="${DEPLOY_ROOT_URL:-${health_url%/healthz}}"
 
 if [[ ! "$image" =~ ^ghcr\.io/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+:[0-9a-f]{40}$ ]]; then
   echo "refusing non-immutable GHCR image: $image" >&2
@@ -25,9 +26,26 @@ fi
 previous_image="$(docker inspect --format '{{.Config.Image}}' "$container_name" 2>/dev/null || true)"
 
 wait_for_health() {
-  local attempt
+  local attempt root_html asset_path scanner_status
   for ((attempt = 1; attempt <= health_attempts; attempt++)); do
-    if curl --fail --silent --max-time 5 "$health_url" >/dev/null 2>&1; then
+    if ! curl --fail --silent --max-time 5 "$health_url" >/dev/null 2>&1; then
+      sleep 2
+      continue
+    fi
+    if ! curl --fail --silent --max-time 5 "$root_url/" >/dev/null 2>&1; then
+      sleep 2
+      continue
+    fi
+
+    root_html="$(curl --fail --silent --max-time 5 "$root_url/" 2>/dev/null || true)"
+    asset_path="$(printf '%s' "$root_html" | grep -oE "/assets/[^\"' ]+\.(js|css)" | head -n 1 || true)"
+    if [[ -z "$asset_path" ]] || ! curl --fail --silent --max-time 5 "$root_url$asset_path" >/dev/null 2>&1; then
+      sleep 2
+      continue
+    fi
+
+    scanner_status="$(curl --silent --show-error --max-time 5 --output /dev/null --write-out '%{http_code}' "$root_url/___proxy_subdomain_whm/login" 2>/dev/null || true)"
+    if [[ "$scanner_status" == "404" ]]; then
       return 0
     fi
     sleep 2

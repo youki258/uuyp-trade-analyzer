@@ -11,7 +11,7 @@
 3. 将镜像推送到 GHCR 的 `latest` 和当前提交 SHA 标签。
 4. 使用 SSH 连接 VPS，拉取当前提交 SHA 对应的不可变镜像。
 5. 按现有配置重建 `uuyp` 容器：`127.0.0.1:8765:8765`、`restart=always`、单 Gunicorn worker。
-6. 在 VPS 内轮询本地 `/api/status`；健康后通过同一 SSH 通道从 VPS 检查公网 HTTPS 地址。
+6. 在 VPS 内轮询本地 `/healthz`、首页、真实 JS/CSS 资源和已知扫描路径 404；健康后通过同一 SSH 通道从 VPS 检查公网 HTTPS 地址。
 7. 新容器不健康时，自动恢复部署前的旧镜像，并让 Actions 任务失败。
 
 同一时间只允许一个生产部署任务运行，避免多个提交同时重建容器。VPS 保留旧镜像，不会在部署脚本中执行镜像清理，便于回滚。
@@ -27,7 +27,7 @@
 | `VPS_USER` | SSH 用户 | `youki` |
 | `VPS_SSH_KEY` | 部署私钥 | 本机 SSH 配置中的 `svr_youki_aliyun` |
 | `VPS_KNOWN_HOSTS` | 固定 SSH 主机指纹 | `ssh-keyscan -p 2233 8.141.80.17` 输出 |
-| `VPS_HEALTHCHECK_URL` | 公网健康地址 | `https://youpin.youki.me/api/status` |
+| `VPS_HEALTHCHECK_URL` | 公网健康地址 | `https://youpin.youki.me/healthz` |
 
 私钥只作为 GitHub Actions Secret 使用，不写入仓库、Docker 镜像、日志或部署脚本。当前 GHCR 镜像可由 VPS 直接拉取，因此不需要把 GHCR Token 放到 VPS。
 
@@ -39,7 +39,7 @@
 gh secret set VPS_HOST --repo youki258/uuyp-trade-analyzer --body 8.141.80.17
 gh secret set VPS_PORT --repo youki258/uuyp-trade-analyzer --body 2233
 gh secret set VPS_USER --repo youki258/uuyp-trade-analyzer --body youki
-gh secret set VPS_HEALTHCHECK_URL --repo youki258/uuyp-trade-analyzer --body https://youpin.youki.me/api/status
+gh secret set VPS_HEALTHCHECK_URL --repo youki258/uuyp-trade-analyzer --body https://youpin.youki.me/healthz
 Get-Content -Raw C:\Users\14733\.ssh\svr_youki_aliyun | gh secret set VPS_SSH_KEY --repo youki258/uuyp-trade-analyzer
 & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -p 2233 8.141.80.17 2>$null | gh secret set VPS_KNOWN_HOSTS --repo youki258/uuyp-trade-analyzer
 ```
